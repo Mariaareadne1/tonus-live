@@ -70,3 +70,37 @@ For testability, main.js exposes `window.getStrudelAudioContext` and
   - BPM→cps conversion and whether `setcps()` belongs inside the evaluated
     string — revisit in Milestone 5/6.
   - Whether `gm_*` sounds need explicit `samples(...)` — Milestone 2.
+
+---
+
+## [milestone 2] · sound picker + effect chain
+
+**Re-evaluating while playing hot-swaps cleanly.**
+Calling `evaluate(newCode)` again while a pattern is running replaces it without
+restarting the clock or the scheduler (`scheduler.started` stays `true`, no
+errors). Confirmed by switching sound and dragging sliders mid-loop in the
+milestone-2 Playwright spec. So "re-evaluate on every change" is just calling
+the bridge's `play()` again — no special "replace" verb needed.
+(Answers ARCHITECTURE open question #2.)
+
+**Effect controls used (all verified present in `@strudel/core/controls.mjs`):**
+`gain`, `lpf` (alias of `cutoff`, value in Hz), `hpf`, `room` (reverb 0..1),
+`delay` (0..1), `pan` (0..1, 0.5 = center). Passing `0` for `hpf`/`room`/`delay`
+is a no-op (dry) and does not error.
+
+**Available sounds in the `@strudel/web` build.**
+Soundfonts are disabled in this build (commented out in `web.mjs`), so `gm_piano`
+and friends are NOT available without extra setup. `registerSynthSounds()` runs
+during `initStrudel()` and provides the basic synth waveforms — the picker uses
+`sawtooth`, `square`, `triangle`, `sine`. Re-enabling samples/soundfonts is a
+later-milestone task (drums in M6 will force the question).
+
+**Architecture now in place** (was sketch-only before): `state.js` (plain
+object, single source of truth), `strudel-bridge.js` (only `@strudel/web`
+importer, exposes `play`/`stop`/`isPlaying`/`getLastPattern`), and
+`lib/pattern-builder.js` (pure `state -> string`). UI modules
+(`ui/sound.js`, `ui/effects.js`) mutate state then call `rebuildAndPlay()`.
+
+**Test hooks unified** under `window.tonus = { state, isPlaying, getLastPattern,
+getAudioContext }` (replaced M1's loose `window.isStrudelPlaying` /
+`window.getStrudelAudioContext`; the M1 spec was updated to match).
