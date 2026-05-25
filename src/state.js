@@ -5,11 +5,15 @@
 // (see main.js) which turns this state into a Strudel pattern and plays it.
 //
 // Grows one milestone at a time. Milestone 2 adds: playback flag, sound, and
-// the six effect controls.
+// the six effect controls. Milestone 3 adds live-keyboard input.
 
 export const state = {
   // playback of the test loop
   playing: false,
+
+  // live computer-keyboard input
+  heldKeys: new Set(), // keyCodes (as strings) currently held down
+  octaveShift: 0, // semitones added to every live note (12 = up an octave)
 
   // tone
   sound: "sawtooth",

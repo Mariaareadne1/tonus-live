@@ -41,6 +41,22 @@ h1 em {
   margin: 0 0 24px;
 }
 
+.hint {
+  color: #928d7e;
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 0 0 8px;
+}
+.hint kbd {
+  background: #181816;
+  border: 1px solid #3a3c38;
+  border-radius: 3px;
+  padding: 1px 5px;
+  color: #e5e1d8;
+  font-family: inherit;
+  font-size: 11px;
+}
+
 .row {
   display: flex;
   gap: 8px;

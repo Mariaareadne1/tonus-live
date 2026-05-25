@@ -50,13 +50,19 @@ tonus-v2/
 
 ## Data flow
 
-The whole thing is unidirectional:
+The whole thing is unidirectional. There are two variants (see the bridge
+section for why the live path differs):
 
 ```
-user input → state mutation → pattern rebuild → strudel.evaluate(pattern)
+loops/drums/layers:  user input → state mutation → pattern rebuild → bridge.play(evaluate)
+live keyboard:        keydown → state.heldKeys += key → bridge.triggerNote(superdough)
 ```
 
-That's it. No reactive system, no observables. Each UI module reads `state`, writes to `state`, and calls `rebuildAndPlay()` after writing.
+No reactive system, no observables. Pattern-path UI modules read `state`, write
+to `state`, and call `rebuildAndPlay()` after writing. The live keyboard reads
+`state` (sound + fx) at each trigger but fires immediately rather than rebuilding
+a pattern, because re-evaluating is too slow for responsive input (measured ~0.5–2s
+onset vs. ~150ms for superdough — see NOTES.md milestone 3).
 
 ## `state.js` shape (initial sketch)
 
@@ -105,56 +111,62 @@ export const state = {
 
 This is the only file that imports from `@strudel/web`. Everywhere else uses the bridge.
 
-Sketch (Claude Code: verify the API, adjust as needed):
+**UPDATED after milestones 1–3 (was a sketch with TODOs; these are now answered by
+running the code — see NOTES.md for the evidence).**
+
+There are TWO distinct playback paths, and they use DIFFERENT mechanisms:
+
+1. **Pattern path** (the test loop now; layers, drums, arp, export later).
+   `play(patternString)` calls `evaluate(code)`, which auto-plays and HOT-SWAPS
+   the running pattern with no clock restart. `stop()` calls `hush()`. This is
+   the on-thesis path — generate Strudel strings, let Strudel play them. It is
+   cycle-based, so it is NOT suitable for responsive live input (see below).
+
+2. **Live-trigger path** (computer keyboard, Milestone 3).
+   `triggerNote(value, durationSec)` calls `superdough(value, ac.currentTime +
+   ε, durationSec)` to fire ONE voice immediately (~150ms onset vs. 0.5–2s for
+   re-evaluating a pattern — measured). `superdough` returns no stop handle, so
+   sustain-while-held + note-off is done by re-triggering per key on an interval
+   and clearing it on key-up (see `ui/keyboard.js`). `superdough` is independent
+   of the scheduler, so live keys work whether or not a loop is playing.
 
 ```js
-// src/strudel-bridge.js
-// Verified facts from https://strudel.cc/technical-manual/project-start/:
-//   - initStrudel() initializes the audio context, scheduler, samples
-//   - note("c a f e").s("sawtooth").play() — pattern fluent API
-//   - hush() stops everything
-//   - must be called from a user-gesture handler the first time
-//
-// Open questions for Claude Code to answer during Milestone 1:
-//   1. How do we stop ONE pattern (not all)? Does play() return a handle?
-//   2. Does .play() re-trigger if called again with a new pattern, or do we
-//      need an explicit "replace" verb?
-//   3. How do we feed in setcps/BPM globally?
-
-let initialized = false;
+// src/strudel-bridge.js  (actual shape — abbreviated)
+import { initStrudel, evaluate, hush, getAudioContext, superdough,
+         getAnalyzerData } from "@strudel/web";
 
 export async function ensureInitialized() {
-  if (initialized) return;
-  // initStrudel is a global after @strudel/web loads
-  initStrudel();
+  if (initialized) return repl;
+  repl = await initStrudel();      // resolves to the repl
+  await getAudioContext().resume?.(); // first gesture allows this
   initialized = true;
+  return repl;
 }
 
-// "Background" pattern: the always-running stack of layers + drums.
-// We replace this whenever layers/drums change.
-let backgroundHandle = null;
-
-export function setBackground(patternString) {
-  if (backgroundHandle) backgroundHandle.stop?.();
-  // TODO Milestone 2: figure out the right re-evaluate verb
-  backgroundHandle = evaluate(patternString);
+export async function play(patternString) {  // pattern path — hot-swaps
+  await ensureInitialized();
+  await evaluate(patternString);
+  lastPattern = patternString;
 }
+export function stop() { if (initialized) hush(); }
 
-// "Foreground" pattern: short-lived keypress sounds.
-export function trigger(patternString) {
-  // For live keypresses — one-shots.
-  // TODO Milestone 3: figure out how to fire a one-shot without restarting
-  // the whole transport
-  evaluate(patternString);
-}
-
-export function stopAll() {
-  hush();
-  backgroundHandle = null;
+export async function triggerNote(value, durationSec) {  // live path
+  await ensureInitialized();
+  superdough(value, getAudioContext().currentTime + 0.02, durationSec);
 }
 ```
 
-The bridge has TODOs because honestly I don't know the exact answers without running the code. Claude Code's first job in Milestone 1 is to answer those questions and fix the bridge.
+**Answers to the original open questions:**
+1. *Stop ONE pattern, not all?* — `hush()` stops everything; there is no
+   per-pattern stop in `@strudel/web`. Multi-pattern (`$:` named patterns) is the
+   path to per-thing control and is deferred to M6/M7.
+2. *Replace verb?* — none needed; calling `evaluate()` again hot-swaps.
+3. *setcps/BPM?* — `setcps(cyclesPerSecond)` inside the evaluated string;
+   `cps = bpm/60/4`. (Revisit when drums/BPM land in M6.)
+
+The "two paths" split is the main divergence from the original single-`evaluate`
+sketch, and it's deliberate: cyclic patterns can't be responsive enough for a
+keyboard, and superdough can't do the note-off that loops get for free.
 
 ## `pattern-builder.js` — state → Strudel string
 

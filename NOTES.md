@@ -104,3 +104,64 @@ importer, exposes `play`/`stop`/`isPlaying`/`getLastPattern`), and
 **Test hooks unified** under `window.tonus = { state, isPlaying, getLastPattern,
 getAudioContext }` (replaced M1's loose `window.isStrudelPlaying` /
 `window.getStrudelAudioContext`; the M1 spec was updated to match).
+
+---
+
+## [milestone 3] · live keyboard — the one-shot scheduling question, ANSWERED
+
+This was the open question in PLAN.md ("what's the right way to schedule one-shot
+notes with Strudel?"). I built a throwaway experiment page (now deleted) that
+measured note-ONSET latency in real headless Chromium for each candidate, using
+an analyser to detect first audible RMS after the trigger call.
+
+**Measured onset latency:**
+
+| approach | onset latency |
+| --- | --- |
+| re-evaluate a once-per-cycle note, `setcps(0.5)` (default) | **~2050 ms** |
+| re-evaluate, `setcps(2)` | ~545 ms |
+| re-evaluate, `setcps(4)` | ~544 ms |
+| **`superdough(value, t, dur)` directly** | **~150 ms** (incl. a deliberate +50ms offset) |
+
+Re-evaluation is cycle-quantized: a `note("c4")` has one hap per cycle at phase
+0, so a freshly-evaluated note doesn't sound until the next cycle boundary. Even
+at high cps there's a ~500ms scheduler-lookahead floor. **Unplayable as a
+keyboard.** Firing `superdough` directly bypasses the cyclist scheduler and is
+~150ms — playable.
+
+**Chosen approach: per-key immediate `superdough`, sustained by re-triggering.**
+`superdough(value, t, durationSec)` fires one fixed-duration voice immediately.
+Crucially it **returns `undefined`** — there is no per-voice stop handle (the
+`setMaxPolyphony` docs confirm voices just "ring out via release" and die FIFO).
+So to get note-OFF (release a held key and have it stop) I re-trigger a short
+note (`RETRIGGER_MS=150`, `NOTE_DUR_S=0.22`) on an interval per held key, and
+clear that interval on key-up. This is exactly the PLAN's phrase "each key
+independently scheduled." Polyphony falls out naturally (one interval per key).
+
+**Approaches rejected and why:**
+- *Re-evaluate a held-notes stack* (PLAN option 1): clean note-off and on-thesis,
+  but 0.5–2s onset latency — unplayable. Kept for loops/recording/export, not
+  live input.
+- *`note(...).play()` per key with a stored handle* (PLAN option 2): `.play()`
+  calls `repl.setPattern`, so a second key REPLACES the first rather than
+  layering — no polyphony, and still cycle-quantized.
+- *Drop to `synth.onTrigger`* (which DOES return `{stop}`): bypasses superdough's
+  FX chain, so effects would have to be rebuilt by hand — exactly the
+  oscillator/filter plumbing the project forbids.
+
+**superdough value object uses RESOLVED param names, not the pattern aliases.**
+The `.lpf`/`.hpf` sugar only exists at the pattern/control level. A superdough
+value object must use `cutoff` (for lpf) and `hcutoff` (for hpf); `gain`, `pan`,
+`room`, `delay`, `note`, `attack`, `release` are as-is. See
+`buildLiveNoteValue()` in pattern-builder.js.
+
+**superdough is independent of the scheduler.** Live keys work whether or not the
+test loop is "playing" — `superdough` doesn't need `scheduler.started`. It does
+need the AudioContext resumed; `ensureInitialized()` now calls `ac.resume()`
+(safe because the first keydown is itself a user gesture).
+
+**Known tradeoff (flagged for ear-check / future tuning):** re-triggering means a
+held note re-attacks every 150ms. With overlap + fast attack it reads as a
+sustained tone, but it's not a single continuous voice. Tunable via the two
+constants in `ui/keyboard.js`. A future option if it feels pulsy: longer overlap
+or a small per-note gain crossfade.

@@ -11,6 +11,7 @@ import * as bridge from "./strudel-bridge.js";
 import { buildTestPattern } from "./lib/pattern-builder.js";
 import { initSound } from "./ui/sound.js";
 import { initEffects } from "./ui/effects.js";
+import { initKeyboard } from "./ui/keyboard.js";
 
 const log = (msg) => {
   const el = document.getElementById("log");
@@ -48,6 +49,7 @@ document.getElementById("stop").addEventListener("click", () => {
 
 initSound(rebuildAndPlay);
 initEffects(rebuildAndPlay);
+initKeyboard();
 
 // Testing/debug hooks.
 window.tonus = {
@@ -55,4 +57,6 @@ window.tonus = {
   isPlaying: bridge.isPlaying,
   getLastPattern: bridge.getLastPattern,
   getAudioContext: bridge.getAudioContext,
+  getAnalyzerData: bridge.getAnalyzerData,
+  heldKeys: () => [...state.heldKeys],
 };
