@@ -9,9 +9,11 @@
 import { state } from "./state.js";
 import * as bridge from "./strudel-bridge.js";
 import { buildTestPattern } from "./lib/pattern-builder.js";
+import { semitoneToStrudelNote } from "./lib/strudel-notes.js";
 import { initSound } from "./ui/sound.js";
 import { initEffects } from "./ui/effects.js";
-import { initKeyboard } from "./ui/keyboard.js";
+import { initKeyboard, notesForKey } from "./ui/keyboard.js";
+import { initChords } from "./ui/chords.js";
 
 const log = (msg) => {
   const el = document.getElementById("log");
@@ -49,6 +51,7 @@ document.getElementById("stop").addEventListener("click", () => {
 
 initSound(rebuildAndPlay);
 initEffects(rebuildAndPlay);
+initChords();
 initKeyboard();
 
 // Testing/debug hooks.
@@ -59,4 +62,5 @@ window.tonus = {
   getAudioContext: bridge.getAudioContext,
   getAnalyzerData: bridge.getAnalyzerData,
   heldKeys: () => [...state.heldKeys],
+  liveNotesForKey: (code) => notesForKey(code).map(semitoneToStrudelNote),
 };

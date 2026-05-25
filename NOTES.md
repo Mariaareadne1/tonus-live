@@ -188,3 +188,29 @@ gives no stop handle, and rolling our own oscillator is exactly the Web-Audio
 voice plumbing this project exists to avoid. So triangular-grain retrigger is the
 best on-thesis option; documented here so the ceiling is a known, deliberate
 choice rather than a surprise.
+
+---
+
+## [milestone 4] · chord mode
+
+Straightforward, built on the M3 live path. `harmony.js` (`chordSemitones`) was
+ported as-is and worked unchanged — its logic was already correct.
+
+**A chord is just stacked live voices.** `notesForKey()` (in `ui/keyboard.js`)
+returns an array of semitones; chord mode returns the chord's notes, single-note
+mode returns one. `triggerKey` fires one superdough voice per returned semitone,
+so chords ride the exact same strike + triangular-grain retrigger path as single
+notes — no separate chord code path, and effects/sustain behave identically.
+
+**Routing rule:** chord mode only intercepts LOWER-octave keys (those in
+`LOWER_OCTAVE_DEGREE`); upper-octave keys stay melodic single notes even with
+chord mode on. This matches "lower-octave keys double as chord-zone keys."
+
+**Bass** is `chord.chordRoot - 12` prepended to the note list (root one octave
+below the chord), gated by `state.bassOn`. **octaveShift** is applied uniformly
+to every resolved semitone (chord or single) as the last step.
+
+Verified by asserting resolved note names per setting (C triad → c4/e4/g4; 7th →
++b4; bass → +c3; root D → d4/f#4/a4...), plus an audio smoke test. Note these are
+live superdough voices, so they don't show up in `getLastPattern()` — that's the
+pattern path, which chords will join later for recording/export (M7/M8).

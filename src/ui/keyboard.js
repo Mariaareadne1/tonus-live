@@ -17,9 +17,15 @@
 //
 // Live notes read state.fx at every trigger, so dragging effect sliders changes
 // the sound of held notes in near-real-time.
+//
+// Chord mode (milestone 4): when state.chordMode is on, lower-octave keys play
+// scale-degree chords (via harmony.js) instead of single notes; a chord is just
+// several voices triggered together on the same retrigger path. Upper-octave
+// keys stay melodic (single notes) regardless.
 
 import { state } from "../state.js";
-import { keyToSemitone } from "../lib/keymap.js";
+import { keyToSemitone, LOWER_OCTAVE_DEGREE } from "../lib/keymap.js";
+import { chordSemitones } from "../lib/harmony.js";
 import { buildLiveNoteValue } from "../lib/pattern-builder.js";
 import * as bridge from "../strudel-bridge.js";
 
@@ -33,10 +39,28 @@ const STRIKE = { dur: 0.18, attack: 0.005, decay: 0, sustain: 1, release: 0.12 }
 
 const timers = new Map(); // keyCode -> setInterval id
 
+// Resolve which semitones a key plays right now (chord mode + bass + octave).
+// Returns [] for unmapped keys. Exported so tests can assert chord correctness.
+export function notesForKey(keyCode) {
+  let semis;
+  const degree = LOWER_OCTAVE_DEGREE[keyCode];
+  if (state.chordMode && degree !== undefined) {
+    const chord = chordSemitones(degree, state.tonalRoot, state.complexity);
+    if (!chord) return [];
+    semis = chord.notes.slice();
+    if (state.bassOn) semis.unshift(chord.chordRoot - 12); // root one octave down
+  } else {
+    const base = keyToSemitone(keyCode, 0);
+    if (base == null) return [];
+    semis = [base];
+  }
+  return semis.map((s) => s + state.octaveShift);
+}
+
 function triggerKey(keyCode, env) {
-  const semitone = keyToSemitone(keyCode, state.octaveShift);
-  if (semitone == null) return;
-  bridge.triggerNote(buildLiveNoteValue(semitone, env), env.dur).catch(() => {});
+  for (const semitone of notesForKey(keyCode)) {
+    bridge.triggerNote(buildLiveNoteValue(semitone, env), env.dur).catch(() => {});
+  }
 }
 
 export function initKeyboard() {
