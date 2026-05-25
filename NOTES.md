@@ -160,8 +160,31 @@ test loop is "playing" — `superdough` doesn't need `scheduler.started`. It doe
 need the AudioContext resumed; `ensureInitialized()` now calls `ac.resume()`
 (safe because the first keydown is itself a user gesture).
 
-**Known tradeoff (flagged for ear-check / future tuning):** re-triggering means a
-held note re-attacks every 150ms. With overlap + fast attack it reads as a
-sustained tone, but it's not a single continuous voice. Tunable via the two
-constants in `ui/keyboard.js`. A future option if it feels pulsy: longer overlap
-or a small per-note gain crossfade.
+**Sustain smoothing — tuned by measurement.** The first cut (re-trigger every
+150ms with a sharp 0.01 attack and default `sustain:0.6`/`decay:0.05`) had an
+audible tremolo on pure tones (sine/triangle). I built a throwaway harness (now
+deleted) that holds a sine note and measures the analyser-RMS coefficient of
+variation across several pitches — a direct proxy for tremolo depth. Findings:
+
+  - The default `sustain:0.6`/`decay:0.05` made each grain SPIKE to 1.0 then drop
+    to 0.6 — a big periodic bump. Fix: `sustain:1, decay:0` (flat-top grains).
+  - Grains that barely overlap leave near-silence gaps (worst-case RMS dropout
+    ~87%). Heavy overlap helps, but the clear winner was an EQUAL-GAIN TRIANGULAR
+    crossfade: attack == release == retrigger interval, tiny hold. Two such grains
+    crossfade linearly so their summed gain is ~constant.
+  - Measured ripple (RMS CV, avg / worst across c4–c5):
+    naive 150ms ≈ 27% / 87%  →  triangular 120ms ≈ **11% / 20%**.
+  - Random per-grain detune made it WORSE (adds beating) — rejected.
+
+Final live envelope (`ui/keyboard.js`): `RETRIGGER_MS=120`; sustain grains
+`{dur:0.13, attack:0.12, decay:0, sustain:1, release:0.12}`; the FIRST note uses
+a snappy `STRIKE {attack:0.005,...}` so onset stays percussive.
+
+**Irreducible residual + the real ceiling.** The remaining ~11% ripple is phase
+interference from re-triggering an *identical* pitch (constant phase offset
+2π·f·interval). It cannot be fully removed with retriggering. A perfectly clean
+sustain would need a single continuous oscillator with note-off — but superdough
+gives no stop handle, and rolling our own oscillator is exactly the Web-Audio
+voice plumbing this project exists to avoid. So triangular-grain retrigger is the
+best on-thesis option; documented here so the ceiling is a known, deliberate
+choice rather than a surprise.

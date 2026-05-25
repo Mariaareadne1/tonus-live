@@ -18,7 +18,11 @@ const TEST_MELODY = "c2 g2 c3 e3 g3 c4 g3 e3";
 // 3), so this returns a control OBJECT with superdough's resolved param names —
 // note the lpf->cutoff / hpf->hcutoff mapping (the .lpf/.hpf aliases only exist
 // at the pattern level, not in superdough's value object).
-export function buildLiveNoteValue(semitone) {
+//
+// `env` is an ADSR override ({ attack, decay, sustain, release }). The keyboard
+// uses a fast-attack "strike" for the first note and flat-top triangular grains
+// for sustain (see ui/keyboard.js) — the envelope shape that measured smoothest.
+export function buildLiveNoteValue(semitone, env) {
   const { sound, fx } = state;
   const value = {
     note: semitoneToStrudelNote(semitone),
@@ -26,8 +30,10 @@ export function buildLiveNoteValue(semitone) {
     gain: fx.gain,
     cutoff: fx.lpf, // lpf
     pan: fx.pan,
-    attack: 0.01,
-    release: 0.12,
+    attack: env.attack,
+    decay: env.decay,
+    sustain: env.sustain,
+    release: env.release,
     analyze: "live", // route through a named analyser (tests + future scope)
   };
   if (fx.hpf > 0) value.hcutoff = fx.hpf;
