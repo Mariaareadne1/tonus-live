@@ -22,6 +22,14 @@ export const state = {
   complexity: 0, // 0 = triad, 1 = 7th, 2 = 9th
   bassOn: false, // add the chord root one octave down
 
+  // arpeggiator (held notes play in sequence via the pattern path)
+  arpOn: false,
+  arpSync: true, // true: rate snaps to musical subdivisions of the BPM
+  arpRateIndex: 2, // index into the rate table (2 = 1/8 when synced)
+
+  // transport
+  bpm: 120,
+
   // tone
   sound: "sawtooth",
 

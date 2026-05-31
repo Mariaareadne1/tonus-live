@@ -38,6 +38,16 @@ const SUSTAIN_GRAIN = { dur: 0.13, attack: 0.12, decay: 0, sustain: 1, release: 
 const STRIKE = { dur: 0.18, attack: 0.005, decay: 0, sustain: 1, release: 0.12 };
 
 const timers = new Map(); // keyCode -> setInterval id
+let rebuildArp = () => {}; // injected in initKeyboard; rebuilds the arp pattern
+
+// Union of all currently-held keys' notes (ascending), for the arpeggiator.
+export function heldNoteSemitones() {
+  const set = new Set();
+  for (const code of state.heldKeys) {
+    for (const s of notesForKey(code)) set.add(s);
+  }
+  return [...set].sort((a, b) => a - b);
+}
 
 // Resolve which semitones a key plays right now (chord mode + bass + octave).
 // Returns [] for unmapped keys. Exported so tests can assert chord correctness.
@@ -63,26 +73,54 @@ function triggerKey(keyCode, env) {
   }
 }
 
-export function initKeyboard() {
+// Stop the retrigger loops for any held CHORD-ZONE keys (lower-octave keys while
+// chord mode is on). Called when the chord preset (root/complexity) changes so
+// the old chord stops instead of clashing with the next one. superdough has no
+// note-off, so already-scheduled grains still fade over ~one grain (~0.25s) —
+// this is the fastest honest cut (see NOTES.md ceiling). It does NOT retune held
+// notes live. Melody / upper-octave keys are left ringing untouched.
+export function stopChordZoneVoices() {
+  if (!state.chordMode) return;
+  for (const code of [...state.heldKeys]) {
+    if (LOWER_OCTAVE_DEGREE[code] === undefined) continue; // not a chord-zone key
+    const id = timers.get(code);
+    if (id != null) {
+      clearInterval(id);
+      timers.delete(code);
+    }
+    state.heldKeys.delete(code);
+  }
+}
+
+// `onArpRebuild` rebuilds the combined pattern (main's rebuildAndPlay). When arp
+// mode is on, held keys feed the pattern path instead of firing superdough.
+export function initKeyboard(onArpRebuild) {
+  rebuildArp = onArpRebuild ?? (() => {});
+
   window.addEventListener("keydown", (e) => {
     if (e.repeat) return;
     const code = String(e.keyCode);
     if (keyToSemitone(code) == null) return; // not a mapped musical key
     if (state.heldKeys.has(code)) return; // already held
     state.heldKeys.add(code);
-    triggerKey(code, STRIKE); // immediate percussive onset
-    timers.set(code, setInterval(() => triggerKey(code, SUSTAIN_GRAIN), RETRIGGER_MS));
+    if (state.arpOn) {
+      rebuildArp(); // pattern path: rebuild arp from the new held set
+    } else {
+      triggerKey(code, STRIKE); // live path: immediate percussive onset
+      timers.set(code, setInterval(() => triggerKey(code, SUSTAIN_GRAIN), RETRIGGER_MS));
+    }
   });
 
   window.addEventListener("keyup", (e) => {
     const code = String(e.keyCode);
     if (!state.heldKeys.has(code)) return;
     state.heldKeys.delete(code);
-    const id = timers.get(code);
+    const id = timers.get(code); // clear any live-path timer (none in arp mode)
     if (id != null) {
       clearInterval(id);
       timers.delete(code);
     }
+    if (state.arpOn) rebuildArp(); // fewer notes, or stop when none left
   });
 
   // Safety: if focus leaves the window mid-hold, release everything so notes
@@ -91,5 +129,6 @@ export function initKeyboard() {
     for (const id of timers.values()) clearInterval(id);
     timers.clear();
     state.heldKeys.clear();
+    if (state.arpOn) rebuildArp();
   });
 }

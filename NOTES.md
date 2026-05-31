@@ -214,3 +214,63 @@ Verified by asserting resolved note names per setting (C triad → c4/e4/g4; 7th
 +b4; bass → +c3; root D → d4/f#4/a4...), plus an audio smoke test. Note these are
 live superdough voices, so they don't show up in `getLastPattern()` — that's the
 pattern path, which chords will join later for recording/export (M7/M8).
+
+**Preset change cuts held chord voices (`stopChordZoneVoices`).** Changing the
+root or complexity while a chord-zone key is held used to overlap the old and new
+chords (e.g. C vs C# flickering) because the old chord's grains kept retriggering
+/ ringing. Fix: on root/complexity change, stop the retrigger loops for held
+LOWER-octave keys (chord mode only) and drop them from `heldKeys`; the user
+re-presses to play the new chord. We do NOT retune live (deeper change, deferred).
+Because superdough has no note-off, already-scheduled grains still fade over
+~one grain (~0.25s) — the fastest honest cut. Melody / upper-octave keys are
+deliberately left ringing (they aren't derived from the root).
+
+---
+
+## [milestone 5] · arpeggiator
+
+**Path choice: PATTERN path, not the live-trigger path.** An arp is inherently
+rhythmic, looped, and must lock to the clock for BPM sync — exactly what Strudel's
+cyclist engine does. Doing it on the live path would mean hand-rolling a clock /
+sequencer (against the thesis). So arp = `evaluate(note(...).fast(...))`. This is
+the OPPOSITE tradeoff from M3's live keyboard, and that's deliberate:
+
+  - live single notes (M3/M4): need ~150ms onset -> superdough (no clock needed).
+  - arp (M5): needs tempo-locked looping -> pattern path (onset latency is fine
+    because an arp is a sustained loop, not a one-shot).
+
+**Onset latency, re-checked.** Pattern re-eval is cycle-quantized, BUT an arp has
+many events per cycle (e.g. 1/8 = 8), so the next event after a keypress is at
+most one subdivision away (~one 1/8 ≈ 0.25s at 120bpm) plus the ~0.5s scheduler
+floor — not a whole cycle. Acceptable for a looping arp; a player feels the loop,
+not the first-event delay.
+
+**Rate math (one global clock, both modes correct).** Global `cps = bpm/240`
+(1 cycle = 1 bar of 4/4). Held notes -> `note("c4 e4 g4").fast(R)` where R is set
+so the events-per-second land right:
+  - rate (events/sec) = len * R * cps
+  - SYNCED:  want rate = spc * cps (spc events per cycle) -> R = spc/len. The cps
+    cancels, so the *pattern string is BPM-independent* but the audible rate
+    scales with BPM (raise BPM -> faster). spc table: 1/4=4 ... 1/32T=48.
+  - FREE:    want rate = a fixed Hz -> R = hz/(len*cps). Here R absorbs cps, so
+    the audible rate stays constant as BPM changes (BPM-independent), which is
+    what "not synced" should mean.
+Verified both: synced 1/8 @120 and @240 keep `.fast(2.6667)` (cps changes);
+free 8Hz keeps the rate by changing `.fast` from 5.3333 (@120) to 2.6667 (@240).
+
+**Integration.** `rebuildAndPlay()` is now the single funnel for the whole
+PATTERN path: it stacks every active source (arp of held keys + the M2 test loop;
+drums/layers will join in M6/M7) into one `stack(...)`, sets cps, and evaluates —
+empty stack -> `hush()`. When arp is on, held keys route through this instead of
+superdough (keyboard.js branches on `state.arpOn`). `setCps` is `repl.setCps`
+(no restart). The shared `fxChain()` (now incl. `.analyze("live")`) is used by
+test loop + arp so they sound identical and both feed the analyser.
+
+**Chord preset change while arping:** retunes live (clean pattern hot-swap) rather
+than the M4 superdough cut — `main.onChordPresetChange` picks the right behavior
+based on `state.arpOn`.
+
+**Deferred:** simultaneous arp + non-synced rate + drums all want the one global
+cps; that's fine now (free arp divides cps out) but a truly independent per-source
+clock would need Strudel's multi-pattern (`$:`) machinery — revisit if M6 drums
++ free arp ever fight over tempo.

@@ -57,6 +57,16 @@ export function stop() {
   hush();
 }
 
+// Set the global tempo in cycles per second (cps = bpm/240 for 4/4). Live, no
+// restart — the running pattern adapts. No-op until initialized.
+export function setCps(cps) {
+  repl?.setCps(cps);
+}
+
+export function getCps() {
+  return repl?.scheduler?.cps;
+}
+
 export function isInitialized() {
   return initialized;
 }

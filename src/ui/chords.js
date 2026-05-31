@@ -10,12 +10,20 @@ import { ROOT_NAMES } from "../lib/harmony.js";
 
 const COMPLEXITY = ["triad", "7th", "9th"];
 
-export function initChords() {
+// `onPresetChange` runs after root/complexity changes — main decides whether to
+// retune the arp (hot-swap) or cut held chord-zone voices (see main.js).
+export function initChords(onPresetChange) {
   const container = document.getElementById("chords");
   container.append(
     checkboxRow("chord mode", "chord-mode", state.chordMode, (v) => (state.chordMode = v)),
-    selectRow("root", "chord-root", ROOT_NAMES, state.tonalRoot, (i) => (state.tonalRoot = i)),
-    selectRow("complexity", "chord-complexity", COMPLEXITY, state.complexity, (i) => (state.complexity = i)),
+    selectRow("root", "chord-root", ROOT_NAMES, state.tonalRoot, (i) => {
+      state.tonalRoot = i;
+      onPresetChange();
+    }),
+    selectRow("complexity", "chord-complexity", COMPLEXITY, state.complexity, (i) => {
+      state.complexity = i;
+      onPresetChange();
+    }),
     checkboxRow("bass", "chord-bass", state.bassOn, (v) => (state.bassOn = v)),
   );
 }

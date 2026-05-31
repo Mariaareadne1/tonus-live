@@ -11,6 +11,7 @@ import { test, expect } from "@playwright/test";
 
 const Z = "90"; // keyCode for Z = lower-octave degree 0 = I chord
 const notes = (page) => page.evaluate((c) => window.tonus.liveNotesForKey(c), Z);
+const held = (page) => page.evaluate(() => window.tonus.heldKeys());
 
 async function peakRms(page, ms) {
   return page.evaluate(async (durationMs) => {
@@ -65,5 +66,36 @@ test("milestone 4: chord mode plays scale-degree chords", async ({ page }) => {
   await page.waitForTimeout(450);
   expect(await peakRms(page, 300)).toBeLessThan(0.02);
 
+  expect(errors).toEqual([]);
+});
+
+test("milestone 4: changing root/complexity cuts held chord-zone voices only", async ({ page }) => {
+  const errors = [];
+  page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
+  page.on("console", (m) => {
+    if (m.type() === "error") errors.push("console: " + m.text());
+  });
+
+  await page.goto("/");
+  await page.locator("#chord-mode").check();
+
+  // Hold a chord-zone key (Z) and a melody key (Q, upper octave).
+  await page.keyboard.down("z");
+  await page.keyboard.down("q");
+  await expect.poll(() => held(page)).toEqual(expect.arrayContaining(["90", "81"]));
+
+  // Changing the root cuts the chord-zone key but leaves the melody key.
+  await page.locator("#chord-root").selectOption("5");
+  expect(await held(page)).toEqual(["81"]);
+
+  // Re-press Z, then changing complexity also cuts it; melody still held.
+  await page.keyboard.up("z");
+  await page.keyboard.down("z");
+  await expect.poll(() => held(page)).toEqual(expect.arrayContaining(["90", "81"]));
+  await page.locator("#chord-complexity").selectOption("2");
+  expect(await held(page)).toEqual(["81"]);
+
+  await page.keyboard.up("q");
+  await page.keyboard.up("z");
   expect(errors).toEqual([]);
 });
