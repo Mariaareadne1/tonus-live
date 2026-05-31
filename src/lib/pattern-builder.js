@@ -26,6 +26,19 @@ export const ARP_RATES = [
   { label: "1/32T", spc: 48, hz: 24 },
 ];
 
+// Drum sounds offered per row. These are the actual folder names in the
+// dirt-samples bank loaded at init (see strudel-bridge.loadDrumSamples /
+// NOTES.md milestone 6) — that bank has no "oh"/"rim", so open hat is "ho" and
+// rimshot is "rm".
+export const DRUM_SOUNDS = [
+  "bd", "sd", "hh", "ho", "cp", "rm", "cr", "lt", "mt", "ht", "sn", "perc",
+];
+
+// Drums don't share the melodic fxChain (which forces .s(synthWaveform)); they
+// carry their own sample sound via s("bd ...") and a fixed gain. They still feed
+// the "live" analyser so audio tests and visualisers see them.
+const DRUM_GAIN = 0.9;
+
 // The shared effect chain, applied to every pattern-path source (test loop, arp,
 // later drums/layers). Includes .analyze("live") so tests and future visualisers
 // can read the output — same analyser id the live keyboard uses.
@@ -90,4 +103,19 @@ export function buildLiveNoteValue(semitone, env) {
 
 export function buildTestPattern() {
   return `note("${TEST_MELODY}")` + fxChain();
+}
+
+// Build the drum-grid pattern: one mini-notation sequence per active row, all
+// stacked into one source. A row's `steps` array maps 1:1 to events in a cycle
+// (1 cycle = 1 bar), so N steps = N subdivisions of the bar — at cps = bpm/240,
+// 16 steps are 16th notes, 8 steps are 8th notes. Inactive steps become rests
+// ("~"). Empty rows are dropped; an all-empty grid returns null (nothing to play).
+export function buildDrumString() {
+  const rows = state.drums.rows.filter((r) => r.steps.some(Boolean));
+  if (rows.length === 0) return null;
+  const parts = rows.map((r) => {
+    const seq = r.steps.map((on) => (on ? r.sound : "~")).join(" ");
+    return `s("${seq}").gain(${DRUM_GAIN}).analyze("live")`;
+  });
+  return parts.length === 1 ? parts[0] : `stack(${parts.join(", ")})`;
 }

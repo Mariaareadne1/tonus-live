@@ -20,11 +20,13 @@ import {
   getAudioContext,
   superdough,
   getAnalyzerData,
+  samples,
 } from "@strudel/web";
 
 let initialized = false;
 let repl = null;
 let lastPattern = "";
+let drumSamplesPromise = null;
 
 export async function ensureInitialized() {
   if (initialized) return repl;
@@ -43,6 +45,24 @@ export async function triggerNote(value, durationSec) {
   const ac = getAudioContext();
   // tiny offset so the onset is never scheduled in the past
   superdough(value, ac.currentTime + 0.02, durationSec);
+}
+
+// Load the dirt-samples drum bank (bd, sd, hh, oh, cp, rim, cr, lt, ...). The
+// @strudel/web build registers only synth waveforms at init (soundfonts/samples
+// are commented out — see NOTES.md milestone 2), so drums need this. Memoized:
+// fetches+registers the sample MAP once; the actual audio buffers load lazily on
+// first trigger. On failure the promise resets so a later retry (e.g. network
+// back) can succeed. Awaited by rebuildAndPlay before building the drum pattern.
+export function loadDrumSamples() {
+  if (!drumSamplesPromise) {
+    drumSamplesPromise = ensureInitialized()
+      .then(() => samples("github:tidalcycles/dirt-samples"))
+      .catch((err) => {
+        drumSamplesPromise = null;
+        throw err;
+      });
+  }
+  return drumSamplesPromise;
 }
 
 // Compile + play (or hot-swap) a pattern string.

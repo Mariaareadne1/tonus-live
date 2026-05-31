@@ -274,3 +274,74 @@ based on `state.arpOn`.
 cps; that's fine now (free arp divides cps out) but a truly independent per-source
 clock would need Strudel's multi-pattern (`$:`) machinery — revisit if M6 drums
 + free arp ever fight over tempo.
+
+---
+
+## [milestone 6] · drum grid — the "where do drum SAMPLES come from?" question, ANSWERED
+
+This was the open question flagged back in M1/M2 ("drums in M6 will force the
+samples question"). The M1 build disables soundfonts/samples in the prebake
+(`registerSoundfonts()` and the `samples()` line are commented out in
+`@strudel/web/web.mjs`), so init registers ONLY synth waveforms — there is no
+`bd`/`sd`/`hh` until we load a bank ourselves.
+
+**`samples()` IS available even though soundfonts aren't.** Traced the export
+chain: `@strudel/web` → `@strudel/webaudio` (`index.mjs` does `export * from
+'superdough'`) → `superdough/sampler.mjs` exports `samples`. So the loader is
+re-exported all the way up; only the *prebake call* was commented out, not the
+function. The bridge now imports `samples` from `@strudel/web` like everything
+else.
+
+**Bank used: `samples('github:tidalcycles/dirt-samples')`.** The `github:` prefix
+resolves to that repo's `strudel.json` (see `fetchSampleMap` in sampler.mjs:
+`githubPath(url, 'strudel.json')`). This gives the classic dirt set — bd, sd, hh,
+ho, cp, rm, cr, lt, mt, ht, sn, perc, ... — registered at the TOP LEVEL (no
+`.bank(...)` needed; `s("bd")` just works).
+
+**Watch the folder names — they are NOT the GM/Tidal aliases.** The M6 ear check
+caught two silent rows: we'd named open-hat `oh` and rimshot `rim`, but this bank
+has neither key. The actual folders are `ho` (open hi-hat, `ho/HHOD0.wav`) and
+`rm` (`rm/RIM0.wav`); a wrong name isn't an error, it just registers nothing and
+plays silence. Verified the full picker list against the fetched `strudel.json`'s
+218 keys before fixing — every other name (bd/sd/hh/cp/cr/lt/mt/ht/sn/perc) is a
+real folder. (Aliases like `oh`→`ho` exist in Strudel's separate drum-machine
+alias bank, which this build doesn't load — so use raw dirt folder names here.)
+
+**Loading is two-phase, and that shaped where the await goes.** `samples(url)`
+fetches+registers the sample MAP (one small JSON) — the actual audio buffers load
+LAZILY on each sound's first trigger (`getSampleBuffer`→`loadBuffer` fetches on
+demand). So the map fetch must finish before evaluating a drum pattern, but the
+buffers stream in after. `strudel-bridge.loadDrumSamples()` memoizes the map
+fetch in a module promise (resets to null on failure so a later retry can
+succeed); `rebuildAndPlay()` awaits it ONLY when `state.drums.on`, inside its own
+try/catch so an offline failure logs and still plays the arp/test loop. This
+keeps the M3 live-keyboard onset path untouched — samples never load unless drums
+are actually turned on.
+
+**Audio test confirms it end-to-end.** The M6 Playwright spec asserts the
+generated pattern string AND a `peakRms > 0.02` on the "live" analyser — the
+audio assertion only passes if the dirt-samples bank fetched from GitHub and a
+buffer loaded and triggered. Gave it a 3s window for the first-buffer network
+round-trip; passes in ~3.7s total.
+
+**Grid → pattern mapping.** Each row is one mini-notation sequence,
+`s("bd ~ ~ ~ bd ...")`, where the row's `steps` boolean array maps 1:1 to events
+in a cycle. With the established `cps = bpm/240` (1 cycle = 1 bar of 4/4), N steps
+= N subdivisions: 16 steps → 16th notes, 8 → 8th notes. Active rows are stacked
+(`stack(rowA, rowB, ...)`) and that whole drum source is pushed into
+rebuildAndPlay's top-level `stack(...)` alongside the arp/test loop (nested stacks
+are fine in Strudel). Empty rows are dropped; an all-empty grid contributes
+nothing. The 16↔8 toggle resizes each row's array (truncate / pad with rests),
+preserving existing hits, and re-renders the grid.
+
+**Drums bypass `fxChain()` deliberately.** That chain forces `.s(synthWaveform)`,
+which would clobber the sample sound. Drums carry their own `s("bd ...")` plus a
+fixed `.gain(0.9)` and `.analyze("live")` (so tests/visualisers see them) — they
+do NOT inherit the melodic lpf/hpf/room/delay/pan. Per-row drum FX is a later
+concern if it ever comes up.
+
+**Metronome: deferred to M7 (deliberate scope call).** PLAN lists "metronome
+toggle" as an M6 bullet, but the M6 acceptance test doesn't require it, and the
+user asked for the metronome to land together with M7's recording quantization
+(the click is what you play along to while recording). So M6 is the grid only;
+the metronome + beat-snap quantization come as a pair in M7.

@@ -116,6 +116,49 @@ button:hover {
   padding: 6px 10px;
 }
 
+/* drum sequencer (milestone 6) */
+.drum-grid {
+  display: grid;
+  gap: 5px;
+  margin-top: 8px;
+}
+.drum-row {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 8px;
+  align-items: center;
+}
+.drum-sound {
+  font-family: inherit;
+  font-size: 12px;
+  background: #181816;
+  color: #e5e1d8;
+  border: 1px solid #3a3c38;
+  padding: 4px 6px;
+}
+.drum-cells {
+  display: grid;
+  gap: 3px;
+}
+.drum-cells .step {
+  padding: 0;
+  min-width: 0;
+  height: 22px;
+  letter-spacing: 0;
+  background: #181816;
+  border: 1px solid #2a2c28;
+}
+.drum-cells .step.beat {
+  border-color: #4a4c48;
+}
+.drum-cells .step.on {
+  background: #ff3cac;
+  border-color: #ff3cac;
+}
+.drum-cells .step:hover {
+  border-color: #ff3cac;
+}
+
 #log {
   margin-top: 24px;
   padding: 12px;

@@ -13,13 +13,14 @@
 
 import { state } from "./state.js";
 import * as bridge from "./strudel-bridge.js";
-import { buildTestPattern, buildArpString } from "./lib/pattern-builder.js";
+import { buildTestPattern, buildArpString, buildDrumString } from "./lib/pattern-builder.js";
 import { semitoneToStrudelNote } from "./lib/strudel-notes.js";
 import { initSound } from "./ui/sound.js";
 import { initEffects } from "./ui/effects.js";
 import { initKeyboard, notesForKey, heldNoteSemitones, stopChordZoneVoices } from "./ui/keyboard.js";
 import { initChords } from "./ui/chords.js";
 import { initArp } from "./ui/arp.js";
+import { initDrums } from "./ui/drums.js";
 
 const log = (msg) => {
   const el = document.getElementById("log");
@@ -36,6 +37,17 @@ async function rebuildAndPlay() {
     if (notes.length) parts.push(buildArpString(notes));
   }
   if (state.playing) parts.push(buildTestPattern());
+  if (state.drums.on) {
+    // Drums need the dirt-samples bank; load it (memoized) before evaluating.
+    // If it fails (e.g. offline), log and play the rest of the stack without it.
+    try {
+      await bridge.loadDrumSamples();
+      const drumCode = buildDrumString();
+      if (drumCode) parts.push(drumCode);
+    } catch (err) {
+      log("drum samples failed to load: " + err.message);
+    }
+  }
 
   if (parts.length === 0) {
     bridge.stop();
@@ -74,6 +86,7 @@ initSound(rebuildAndPlay);
 initEffects(rebuildAndPlay);
 initChords(onChordPresetChange);
 initArp(rebuildAndPlay);
+initDrums(rebuildAndPlay);
 initKeyboard(rebuildAndPlay);
 
 // Testing/debug hooks.

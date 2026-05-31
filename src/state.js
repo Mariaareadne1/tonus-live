@@ -27,6 +27,25 @@ export const state = {
   arpSync: true, // true: rate snaps to musical subdivisions of the BPM
   arpRateIndex: 2, // index into the rate table (2 = 1/8 when synced)
 
+  // drum sequencer (milestone 6) — N steps per bar, 8 rows, one sound per row.
+  // Each row's `steps` array maps 1:1 to events in a cycle (1 cycle = 1 bar), so
+  // toggling 16<->8 changes the subdivision (16th vs 8th notes). Played via the
+  // pattern path, stacked alongside the arp/test loop in rebuildAndPlay().
+  drums: {
+    on: false,
+    steps: 16,
+    rows: [
+      { sound: "bd", steps: Array(16).fill(false) },
+      { sound: "sd", steps: Array(16).fill(false) },
+      { sound: "hh", steps: Array(16).fill(false) },
+      { sound: "ho", steps: Array(16).fill(false) },
+      { sound: "cp", steps: Array(16).fill(false) },
+      { sound: "rm", steps: Array(16).fill(false) },
+      { sound: "cr", steps: Array(16).fill(false) },
+      { sound: "lt", steps: Array(16).fill(false) },
+    ],
+  },
+
   // transport
   bpm: 120,
 
