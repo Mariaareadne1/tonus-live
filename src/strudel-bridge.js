@@ -87,6 +87,14 @@ export function getCps() {
   return repl?.scheduler?.cps;
 }
 
+// Current position of Strudel's master clock, in CYCLES (1 cycle = 1 bar = 4
+// beats under cps=bpm/240). Returns 0 when the scheduler isn't running. The
+// recorder snaps to this grid so recordings, the metronome, and finalized layers
+// all share one timebase (see NOTES.md milestone 7 — layer/metronome sync).
+export function getCycle() {
+  return repl?.scheduler?.now() ?? 0;
+}
+
 export function isInitialized() {
   return initialized;
 }

@@ -159,6 +159,46 @@ button:hover {
   border-color: #ff3cac;
 }
 
+/* recording + layers (milestone 7) */
+.rec-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.rec-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #3a3c38;
+  flex: none;
+  transition: background 0.1s;
+}
+.rec-dot.on {
+  background: #ff3030;
+  box-shadow: 0 0 7px #ff3030;
+}
+.layer-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+  margin: 4px 0;
+}
+.layer-name {
+  color: #928d7e;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 11px;
+}
+.layer-btn {
+  padding: 5px 12px;
+  font-size: 11px;
+}
+.layer-btn.active {
+  border-color: #ff3cac;
+  color: #ff3cac;
+}
+
 #log {
   margin-top: 24px;
   padding: 12px;

@@ -12,8 +12,14 @@
 import { state } from "../state.js";
 import { DRUM_SOUNDS } from "../lib/pattern-builder.js";
 
+// Module refs so clearDrumGrid() (called from the recorder on FINALIZE) can
+// reset the grid and re-render it.
+let gridEl = null;
+let gridOnChange = () => {};
+
 export function initDrums(onChange) {
   const container = document.getElementById("drums");
+  gridOnChange = onChange;
 
   // drums on/off
   container.appendChild(
@@ -46,7 +52,17 @@ export function initDrums(onChange) {
   container.appendChild(stepsRow);
 
   container.appendChild(grid);
+  gridEl = grid;
   renderGrid(grid, onChange);
+}
+
+// Wipe every step in the grid and re-render. Called by FINALIZE after the drum
+// pattern has been snapshotted into a layer, so the committed drums don't keep
+// playing live and double against the layer. Leaves row sounds / step count / the
+// drums-on toggle alone — just clears the cells. The caller re-evaluates.
+export function clearDrumGrid() {
+  for (const row of state.drums.rows) row.steps = row.steps.map(() => false);
+  if (gridEl) renderGrid(gridEl, gridOnChange);
 }
 
 // Resize every row's step array to n, preserving existing hits (truncate when

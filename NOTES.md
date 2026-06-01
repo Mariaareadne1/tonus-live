@@ -345,3 +345,125 @@ toggle" as an M6 bullet, but the M6 acceptance test doesn't require it, and the
 user asked for the metronome to land together with M7's recording quantization
 (the click is what you play along to while recording). So M6 is the grid only;
 the metronome + beat-snap quantization come as a pair in M7.
+
+---
+
+## [milestone 7] · recording + layers, with INPUT quantization
+
+The headline feature. Recording captures key presses while armed and FINALIZE
+compiles them into a looping layer; layers stack and each has mute/delete.
+
+**Quantization is on the way IN, not post-record.** The recorder (`ui/record.js`)
+owns a beat grid: `gridOrigin` (a timestamp for "beat 0") and `beatMs` (60000/bpm,
+frozen at arm). The instant a press or release arrives, its timestamp is snapped
+to the nearest beat index:
+  `beat = Math.round((now - gridOrigin) / beatMs)`
+which is exactly the user's formula `Math.round(tSec * bpm/60)` rebased to the
+grid origin (beatMs == 1000/(bpm/60)). So captured durations are whole beats, and
+the compiled code has clean integer weights — never float garbage. (Half-beat
+resolution would be `beatMs/2`; we use whole beats, which matches the goal and
+keeps `@n` integer.)
+
+**The grid origin has to track what the player hears, or snapping drifts.** First
+cut anchored the grid at the ARM click. But there's latency between arming and the
+first keypress (in the test harness ~300ms; for a human, however long they wait).
+That offset shifts every absolute beat position while the first note's start stays
+0 — so a clean 2-beat hold rounded to 3 (`@3 ... .slow(1.5)`), caught by the test.
+Two-part fix:
+  - metronome ON  -> grid origin = the last click (`lastClick`). You play to the
+    clicks, snapping aligns to the clicks.
+  - metronome OFF -> grid is re-anchored to the FIRST press of the take (like a
+    DAW with no count-in). Leading silence is dropped; the first note is beat 0.
+
+**Compile = duration-weighted mini-notation (`compileLayer` in pattern-builder).**
+Each event becomes a token weighted by its beat-duration: a 2-beat C chord ->
+`[c4,e4,g4]@2`. Gaps become `~@n` rests. The whole loop is stretched with
+`.slow(loopLen/4)` so one weight-unit == one beat (1 cycle == 1 bar == 4 beats
+under the established cps=bpm/240); a 4-beat loop needs no `.slow`. Events sharing
+a start beat merge into one chord; the timeline cursor is kept monotonic so the
+layer is monophonic-in-time (the acceptance input is sequential presses — true
+overlapping polyphony within one layer is a deliberate non-goal).
+
+  press Z (chord mode, C major) 2 beats, then X (D minor) 2 beats ->
+    note("[c4,e4,g4]@2 [d4,f4,a4]@2")
+
+**Output form follows the mode that was playing, per segment** (user's call). Each
+event also logs whether the arpeggiator was ON at press time, and the compiler
+emits the matching form:
+  - arp OFF -> block chords:  note("[c4,e4,g4]@2 [d4,f4,a4]@2")
+  - arp ON  -> arp form:      note("[c4,e4,g4]@2 [d4,f4,a4]@2").arp("0 1 2")
+A take that switches arp mid-record is split into one duration-weighted timeline
+per mode (the other mode's slots filled with rests) and `stack(...)`-ed, so every
+segment sits at the right beat in the right form:
+    stack(note("[c4,e4,g4]@2 ~@2"), note("~@2 [d4,f4,a4]@2").arp("0 1 2"))
+We keep the `@n` weights even in the arp form (the PLAN sketch's bare `<...>` would
+have dropped the durations) so quantization is preserved either way. The arp index
+list is sized to the largest arp-segment chord ("0 1 2" for triads, "0 1 2 3" for
+7ths); a single fixed list applies to the whole arp timeline.
+
+**Metronome** is a self-scheduling `setTimeout` click (re-reads BPM each beat so
+it follows the slider) firing a short square-wave blip via superdough — scheduler-
+independent, like live keys, and NOT routed through `.analyze("live")` so it
+doesn't pollute the analyser other tests read. Accents the downbeat (every 4th).
+
+**Layers** live in `state.layers` ({id, code, muted, label}); rebuildAndPlay
+pushes every non-muted layer's frozen code into the same top-level `stack(...)` as
+arp/drums/test, so finalized loops play simultaneously and mute/delete just
+re-evaluate. A layer's fxChain is baked in at finalize, so each layer keeps the
+sound/effects it was recorded with.
+
+**Testing time-dependent capture: inject the clock.** Real `waitForTimeout` holds
+were too noisy to assert beat counts against (same 2x1000ms take measured 2303ms
+then 3063ms across runs — enough jitter to round differently). So the recorder's
+grid time source is injectable (`setClock`, exposed as `window.tonus._setClock`);
+the test drives exact fake BEAT positions at each real keydown/keyup. The full
+press -> hook -> snap -> compile path still runs; only the clock is controlled.
+
+### [milestone 7 · v2 fixes] sync, arp rate, drum capture
+
+Three issues from the M7 ear-check, fixed:
+
+**BUG 1 — layer/metronome sync (two clocks → one).** The metronome was a
+`setTimeout`/`performance.now` click loop; layers play on Strudel's `scheduler.now()`
+cycle clock. Two unrelated timebases → a constant offset that "never catches up".
+Fix: the metronome is now a Strudel PATTERN (`buildMetronomeString` = `note("c6 c5
+c5 c5").s("square")...`, 4 clicks/cycle = 1/beat, downbeat accented by pitch),
+stacked by rebuildAndPlay. Being a pattern, it rides the SAME master clock as
+layers, so they're cycle-aligned by construction and never drift. The recorder's
+grid now also reads that master clock (`bridge.getCycle()` = `scheduler.now()`, in
+cycles; *4 = beats) whenever the scheduler is running (metronome or any layer) —
+so a recording snaps to the grid you hear and the finalized layer locks to the
+click. With nothing playing there's no master clock to sync to, so it falls back to
+`performance.now` anchored to the first press (internal consistency only). Unmute
+re-evaluates the stack, which is inherently cycle-quantized — the layer resumes on
+a cycle boundary, in time with the click.
+
+**BUG 2 — arp layer played at half speed.** `.arp(indices, pat)` is
+`pat.arpWith(haps => reify(indices).fmap(i => haps[i%len]))` + `innerJoin` — it fits
+the WHOLE index list into each chord's full duration, so it can't carry a fixed
+rate (3 notes spread over a 2-beat hold ≈ slow). Fix: drop `.arp()` entirely and
+encode an arp segment as a SUBDIVIDED note sequence sized to the recorded rate.
+Each note logs `arpSpb` (steps/beat: synced = spc/4, free = hz*60/bpm); the
+compiler emits `[c4 e4 g4 c4]@2` — round(dur*spb) steps cycling the chord, the
+`[..]` group sub-sequencing them and `@dur` spanning the right beats. 1/8 over 2
+beats → 4 steps; 1/16 → 8 steps. Plays at the recorded speed regardless of the
+current slider, and (bonus) this is exactly how the live arp sounds (a fast note
+sequence), so block segments stay `[c4,e4,g4]` (commas) and arp segments are
+`[c4 e4 g4 ...]` (spaces) — both inline in ONE `note(...)`, no per-mode stack needed
+anymore. Free-rate arps tempo-lock to the record-time BPM (acceptable: a finalized
+layer is a fixed pattern).
+
+**BUG 3 — drums weren't captured.** FINALIZE now snapshots `buildDrumString()` when
+`state.drums.on` and `compileLayer(events, drumCode)` stacks it with the note part
+(`stack(note(...)..., s("bd ...")...)`), so the take captures whatever drums were
+playing, frozen. Drums are cycle-aligned mini-notation and the note part is
+cycle-aligned too, so they loop in sync. To avoid the committed drums doubling
+against the still-live grid, FINALIZE wipes the grid after baking it in — gated by
+a "clear grid on finalize" checkbox (`state.clearDrumsOnFinalize`, default ON;
+`clearDrumGrid()` in ui/drums.js clears the cells but leaves row sounds / step
+count / the drums-on toggle alone). Turn it off to keep layering onto the same
+grid. The test asserts `s("bd` appears exactly once in the live program after a
+default finalize (proving no double).
+
+Output-form note: the previous `.arp("0 1 2")` form is GONE (it couldn't encode
+rate) — superseded by the per-rate sequence above.

@@ -40,6 +40,15 @@ const STRIKE = { dur: 0.18, attack: 0.005, decay: 0, sustain: 1, release: 0.12 }
 const timers = new Map(); // keyCode -> setInterval id
 let rebuildArp = () => {}; // injected in initKeyboard; rebuilds the arp pattern
 
+// Note-event hook (milestone 7). The recorder registers a callback here so it
+// sees every musical press/release with the already-resolved notes (chords and
+// octave shift included) — independent of how the note is sounded (live vs arp).
+// press: { type:"press", code, notes:number[] }; release: { type:"release", code }.
+let noteEventHook = null;
+export function setNoteEventHook(fn) {
+  noteEventHook = fn;
+}
+
 // Union of all currently-held keys' notes (ascending), for the arpeggiator.
 export function heldNoteSemitones() {
   const set = new Set();
@@ -103,6 +112,8 @@ export function initKeyboard(onArpRebuild) {
     if (keyToSemitone(code) == null) return; // not a mapped musical key
     if (state.heldKeys.has(code)) return; // already held
     state.heldKeys.add(code);
+    const notes = notesForKey(code);
+    if (noteEventHook && notes.length) noteEventHook({ type: "press", code, notes });
     if (state.arpOn) {
       rebuildArp(); // pattern path: rebuild arp from the new held set
     } else {
@@ -120,12 +131,17 @@ export function initKeyboard(onArpRebuild) {
       clearInterval(id);
       timers.delete(code);
     }
+    if (noteEventHook) noteEventHook({ type: "release", code });
     if (state.arpOn) rebuildArp(); // fewer notes, or stop when none left
   });
 
   // Safety: if focus leaves the window mid-hold, release everything so notes
   // don't get stuck re-triggering forever.
   window.addEventListener("blur", () => {
+    // Release recorder-tracked keys too, so a held note doesn't capture forever.
+    if (noteEventHook) {
+      for (const code of state.heldKeys) noteEventHook({ type: "release", code });
+    }
     for (const id of timers.values()) clearInterval(id);
     timers.clear();
     state.heldKeys.clear();

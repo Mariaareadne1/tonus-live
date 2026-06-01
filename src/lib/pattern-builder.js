@@ -105,6 +105,123 @@ export function buildTestPattern() {
   return `note("${TEST_MELODY}")` + fxChain();
 }
 
+// --- recording / layers (milestone 7) -------------------------------------
+//
+// Compile a QUANTIZED recording into a looping Strudel layer string. `events` is
+// a list of { notes:number[], startBeat, endBeat, arp:boolean, arpSpb:number }
+// whose beat bounds were already snapped to the grid by the recorder, plus the
+// arp mode and arp rate (steps/beat) active when each note was held. `drumCode`
+// (optional) is a frozen drum-grid pattern snapshotted at finalize.
+//
+// Each event becomes mini-notation weighted by its duration in beats (`@n`), gaps
+// become rests (`~`), and the loop is stretched with `.slow()` so one weight-unit
+// == one beat (1 cycle == 1 bar == 4 beats under cps=bpm/240). The output FORM
+// matches what was actually playing, per segment:
+//   - arp OFF -> block chord:   [c4,e4,g4]@2          (comma = simultaneous)
+//   - arp ON  -> arp sequence:  [c4 e4 g4 c4]@2       (space = sequenced)
+// The arp form sequences the chord notes at the RECORDED rate (arpSpb steps/beat),
+// so it plays back at the speed it was performed regardless of the current slider
+// (see arpSequenceToken). Drums, if captured, are stacked alongside the notes so
+// both loop in sync. Returns null for an empty take with no drums.
+export function compileLayer(events, drumCode = null) {
+  const notePart = events && events.length ? buildNotePart(events) : null;
+  const parts = [];
+  if (notePart) parts.push(notePart);
+  if (drumCode) parts.push(drumCode);
+  if (parts.length === 0) return null;
+  return parts.length === 1 ? parts[0] : `stack(${parts.join(", ")})`;
+}
+
+function buildNotePart(events) {
+  // rebase so the earliest press is beat 0 (drop leading silence)
+  const minStart = Math.min(...events.map((e) => e.startBeat));
+
+  // merge events that start on the same beat into one chord (a simultaneous
+  // press shares one mode/rate, since arp is a global toggle at any instant)
+  const byStart = new Map();
+  for (const e of events) {
+    const start = e.startBeat - minStart;
+    const end = e.endBeat - minStart;
+    const cur = byStart.get(start);
+    if (cur) {
+      cur.notes = [...new Set([...cur.notes, ...e.notes])];
+      cur.end = Math.max(cur.end, end);
+    } else {
+      byStart.set(start, {
+        notes: [...new Set(e.notes)],
+        start,
+        end,
+        arp: !!e.arp,
+        arpSpb: e.arpSpb || 0,
+      });
+    }
+  }
+  const groups = [...byStart.values()].sort((a, b) => a.start - b.start);
+
+  // lay groups onto a monotonic timeline, inserting rests for gaps. Keeping the
+  // cursor monotonic makes the layer monophonic-in-time: overlapping presses are
+  // sequenced (a deliberate simplification — acceptance input is sequential).
+  const tokens = [];
+  let cursor = 0;
+  for (const g of groups) {
+    const start = Math.max(g.start, cursor);
+    if (start > cursor) tokens.push(weighted("~", start - cursor));
+    const dur = Math.max(1, g.end - start);
+    const tok = g.arp ? arpSequenceToken(g.notes, dur, g.arpSpb) : noteToken(g.notes);
+    tokens.push(weighted(tok, dur));
+    cursor = start + dur;
+  }
+  const loopLen = cursor; // total beats in the loop
+
+  let code = `note("${tokens.join(" ")}")`;
+  const slow = loopLen / 4; // 4 beats == 1 cycle; stretch to span loopLen beats
+  if (slow !== 1) code += `.slow(${fmtNum(slow)})`;
+  return code + fxChain();
+}
+
+// An arp segment: the chord's notes (ascending) sequenced and repeated to fill the
+// segment at the RECORDED rate. `spb` = arp steps per beat at record time (synced:
+// spc/4; free: hz*60/bpm). total = round(dur*spb) steps cycling the chord; a
+// space-separated `[..]` group is a sub-sequence (vs the comma-chord), and the
+// surrounding `@dur` weight makes it span the right beats — so it plays back at the
+// recorded arp speed. This is why a 1/8 arp no longer falls to half-speed.
+function arpSequenceToken(notes, durBeats, spb) {
+  const asc = notes.slice().sort((a, b) => a - b);
+  const total = Math.max(1, Math.round(durBeats * (spb || 1)));
+  const steps = [];
+  for (let k = 0; k < total; k++) steps.push(semitoneToStrudelNote(asc[k % asc.length]));
+  return steps.length === 1 ? steps[0] : "[" + steps.join(" ") + "]";
+}
+
+// The metronome as a Strudel PATTERN (milestone 7 sync fix): four square-wave
+// clicks per cycle == one per beat, accented on the downbeat (c6 vs c5). Being a
+// pattern, it rides Strudel's master clock — the same clock finalized layers play
+// on — so clicks and layers never drift. Bypasses fxChain (fixed click sound).
+export function buildMetronomeString() {
+  return (
+    `note("c6 c5 c5 c5")` +
+    `.s("square").gain(0.3).attack(0.001).decay(0.04).sustain(0).release(0.02)` +
+    `.analyze("live")`
+  );
+}
+
+// "tok@n" when n>1, else just "tok" (n==1 needs no weight). n is a beat count.
+function weighted(tok, beats) {
+  return beats > 1 ? `${tok}@${beats}` : tok;
+}
+
+// One note -> "c4"; a chord -> "[c4,e4,g4]" (ascending so it reads predictably).
+function noteToken(semitones) {
+  const sorted = semitones.slice().sort((a, b) => a - b);
+  if (sorted.length === 1) return semitoneToStrudelNote(sorted[0]);
+  return "[" + sorted.map(semitoneToStrudelNote).join(",") + "]";
+}
+
+// Clean number formatting for export: integers stay bare, fractions are trimmed.
+function fmtNum(n) {
+  return Number.isInteger(n) ? String(n) : String(Math.round(n * 1000) / 1000);
+}
+
 // Build the drum-grid pattern: one mini-notation sequence per active row, all
 // stacked into one source. A row's `steps` array maps 1:1 to events in a cycle
 // (1 cycle = 1 bar), so N steps = N subdivisions of the bar — at cps = bpm/240,

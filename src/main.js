@@ -13,7 +13,7 @@
 
 import { state } from "./state.js";
 import * as bridge from "./strudel-bridge.js";
-import { buildTestPattern, buildArpString, buildDrumString } from "./lib/pattern-builder.js";
+import { buildTestPattern, buildArpString, buildDrumString, buildMetronomeString } from "./lib/pattern-builder.js";
 import { semitoneToStrudelNote } from "./lib/strudel-notes.js";
 import { initSound } from "./ui/sound.js";
 import { initEffects } from "./ui/effects.js";
@@ -21,6 +21,7 @@ import { initKeyboard, notesForKey, heldNoteSemitones, stopChordZoneVoices } fro
 import { initChords } from "./ui/chords.js";
 import { initArp } from "./ui/arp.js";
 import { initDrums } from "./ui/drums.js";
+import { initRecord, getLastRecording, setClock } from "./ui/record.js";
 
 const log = (msg) => {
   const el = document.getElementById("log");
@@ -48,6 +49,13 @@ async function rebuildAndPlay() {
       log("drum samples failed to load: " + err.message);
     }
   }
+  // Finalized recording layers loop simultaneously; muted ones are skipped.
+  for (const layer of state.layers) {
+    if (!layer.muted) parts.push(layer.code);
+  }
+  // Metronome is a cycle-aligned Strudel pattern, so it shares the clock with
+  // (and stays locked to) the layers above.
+  if (state.metronome) parts.push(buildMetronomeString());
 
   if (parts.length === 0) {
     bridge.stop();
@@ -88,6 +96,7 @@ initChords(onChordPresetChange);
 initArp(rebuildAndPlay);
 initDrums(rebuildAndPlay);
 initKeyboard(rebuildAndPlay);
+initRecord(rebuildAndPlay);
 
 // Testing/debug hooks.
 window.tonus = {
@@ -99,4 +108,6 @@ window.tonus = {
   getAnalyzerData: bridge.getAnalyzerData,
   heldKeys: () => [...state.heldKeys],
   liveNotesForKey: (code) => notesForKey(code).map(semitoneToStrudelNote),
+  lastRecording: getLastRecording,
+  _setClock: setClock, // test seam: drive the recording grid with a fake clock
 };

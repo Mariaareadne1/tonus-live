@@ -46,6 +46,16 @@ export const state = {
     ],
   },
 
+  // recording + layers (milestone 7). Keypresses are captured while `recording`
+  // is true, quantized to the beat grid on the way in (see ui/record.js), then
+  // FINALIZE compiles them into a looping layer string pushed onto `layers`.
+  // rebuildAndPlay stacks every non-muted layer alongside the other sources.
+  recording: false, // armed: capturing keypresses
+  metronome: false, // audible click on every beat (play-along guide)
+  layers: [], // finalized loops: { id, code, muted, label }
+  clearDrumsOnFinalize: true, // FINALIZE wipes the drum grid after baking it into
+  // the layer, so the committed drums don't double against the live grid
+
   // transport
   bpm: 120,
 
