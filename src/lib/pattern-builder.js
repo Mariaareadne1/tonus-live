@@ -205,6 +205,51 @@ export function buildMetronomeString() {
   );
 }
 
+// --- export (milestone 8) --------------------------------------------------
+//
+// Serialize everything currently playing into a standalone Strudel program that
+// runs verbatim in strudel.cc and sounds the same: a `setcps` (our bpm/240 == one
+// bar per cycle), a `samples(...)` load when any drums are present, then the
+// non-muted layers + the live drum grid as a commented `stack(...)`. The metronome
+// and the M2 test loop are deliberately excluded — they're guides, not the song.
+//
+// The tonus-only `.analyze("live")` (analyser routing for our visualiser/tests) is
+// stripped: strudel.cc doesn't need it and it keeps the output clean.
+const DRUM_SOUND_RE = new RegExp(`s\\("(${DRUM_SOUNDS.join("|")})[ "]`);
+
+function stripAnalyze(code) {
+  return code.replaceAll('.analyze("live")', "");
+}
+
+export function buildExportCode() {
+  const parts = [];
+  for (const layer of state.layers) {
+    if (layer.muted) continue;
+    parts.push({ comment: `layer ${layer.id}`, code: stripAnalyze(layer.code) });
+  }
+  const drums = state.drums.on ? buildDrumString() : null;
+  if (drums) parts.push({ comment: "drums", code: stripAnalyze(drums) });
+
+  const header = [`// tonus export — ${state.bpm} bpm`, `setcps(${state.bpm}/240)`];
+  // load the drum bank if any exported part references a dirt-samples sound
+  // (live drums OR drums baked into a layer)
+  if (parts.some((p) => DRUM_SOUND_RE.test(p.code))) {
+    header.push(`samples('github:tidalcycles/dirt-samples')`);
+  }
+
+  if (parts.length === 0) {
+    return `${header.join("\n")}\n\nsilence\n`;
+  }
+  let body;
+  if (parts.length === 1) {
+    body = `// ${parts[0].comment}\n${parts[0].code}`;
+  } else {
+    const inner = parts.map((p) => `  // ${p.comment}\n  ${p.code}`).join(",\n");
+    body = `stack(\n${inner}\n)`;
+  }
+  return `${header.join("\n")}\n\n${body}\n`;
+}
+
 // "tok@n" when n>1, else just "tok" (n==1 needs no weight). n is a beat count.
 function weighted(tok, beats) {
   return beats > 1 ? `${tok}@${beats}` : tok;

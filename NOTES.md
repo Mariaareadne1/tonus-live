@@ -467,3 +467,37 @@ default finalize (proving no double).
 
 Output-form note: the previous `.arp("0 1 2")` form is GONE (it couldn't encode
 rate) — superseded by the per-rate sequence above.
+
+---
+
+## [milestone 8] · export
+
+Serialize everything playing into a standalone Strudel program that runs verbatim
+in strudel.cc (`buildExportCode` in pattern-builder.js, `ui/export.js` panel).
+
+**What's exported:** `setcps(${bpm}/240)` (the division is exact AND self-documents
+the bpm; our 1 bar = 1 cycle), a `samples('github:tidalcycles/dirt-samples')` line
+when any part references a dirt sound (live drums OR drums baked into a layer), then
+the non-muted layers + the live drum grid as a commented `stack(...)`:
+`// layer 1`, `// layer 2`, `// drums`. A single part skips the `stack(...)` wrapper;
+an empty program emits `silence`.
+
+**What's excluded, deliberately:** the metronome and the M2 test loop — they're
+guides/auditioning, not the song. And the tonus-internal `.analyze("live")` is
+stripped (analyser routing for our visualiser/tests); strudel.cc doesn't need it.
+
+**Portability proof.** We can't drive strudel.cc from a test, but our bridge IS
+Strudel (same `@strudel/transpiler` strudel.cc uses). So the milestone-8 spec
+EVALUATES the exported string through Strudel (`window.tonus._eval` -> bridge.play)
+and asserts it plays with zero page/console errors — a strong proxy for "pastes
+into strudel.cc and works". This also confirmed the multi-statement shape
+(`setcps(...)` / `samples(...)` then the `stack(...)` expression) evaluates fine —
+top-level statements run, the final pattern expression plays.
+
+**Panel sync gotcha.** `refreshExport()` must run at the TOP of rebuildAndPlay
+(before the `await loadDrumSamples()`), or the textarea lags a step behind state
+when drums are toggled — the test caught the stale panel vs. fresh `exportCode()`.
+
+**Copy/download.** Copy uses `navigator.clipboard.writeText` with a `execCommand`
+selection fallback; download builds a `Blob` -> object URL -> `<a download="tonus.js">`.
+The test grants clipboard permission and captures the download event for the name.

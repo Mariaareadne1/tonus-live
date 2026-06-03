@@ -13,7 +13,13 @@
 
 import { state } from "./state.js";
 import * as bridge from "./strudel-bridge.js";
-import { buildTestPattern, buildArpString, buildDrumString, buildMetronomeString } from "./lib/pattern-builder.js";
+import {
+  buildTestPattern,
+  buildArpString,
+  buildDrumString,
+  buildMetronomeString,
+  buildExportCode,
+} from "./lib/pattern-builder.js";
 import { semitoneToStrudelNote } from "./lib/strudel-notes.js";
 import { initSound } from "./ui/sound.js";
 import { initEffects } from "./ui/effects.js";
@@ -22,6 +28,7 @@ import { initChords } from "./ui/chords.js";
 import { initArp } from "./ui/arp.js";
 import { initDrums } from "./ui/drums.js";
 import { initRecord, getLastRecording, setClock } from "./ui/record.js";
+import { initExport, refreshExport } from "./ui/export.js";
 
 const log = (msg) => {
   const el = document.getElementById("log");
@@ -31,6 +38,10 @@ const log = (msg) => {
 
 // Collect every active pattern-path source into one stack and play it.
 async function rebuildAndPlay() {
+  // Mirror the export panel to current state up front (synchronous, before any
+  // await), so it never lags behind a slow step like loading drum samples.
+  refreshExport();
+
   const parts = [];
 
   if (state.arpOn) {
@@ -97,6 +108,7 @@ initArp(rebuildAndPlay);
 initDrums(rebuildAndPlay);
 initKeyboard(rebuildAndPlay);
 initRecord(rebuildAndPlay);
+initExport();
 
 // Testing/debug hooks.
 window.tonus = {
@@ -109,5 +121,7 @@ window.tonus = {
   heldKeys: () => [...state.heldKeys],
   liveNotesForKey: (code) => notesForKey(code).map(semitoneToStrudelNote),
   lastRecording: getLastRecording,
+  exportCode: buildExportCode,
   _setClock: setClock, // test seam: drive the recording grid with a fake clock
+  _eval: (code) => bridge.play(code), // test seam: run exported code through Strudel
 };

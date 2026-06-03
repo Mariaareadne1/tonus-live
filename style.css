@@ -199,6 +199,22 @@ button:hover {
   color: #ff3cac;
 }
 
+/* export (milestone 8) */
+#export-code {
+  width: 100%;
+  margin-top: 10px;
+  background: #0a0a0a;
+  color: #4dd6e6;
+  border: 1px solid #2a2c28;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 12px;
+  resize: vertical;
+  white-space: pre;
+  overflow-x: auto;
+}
+
 #log {
   margin-top: 24px;
   padding: 12px;
