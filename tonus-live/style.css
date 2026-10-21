@@ -106,6 +106,20 @@ body {
   padding-left: 14px;
 }
 
+.brand-link {
+  margin-left: 4px;
+  padding: 4px 10px;
+  border: 1px solid var(--line-2);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--phosphor);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.brand-link:hover { border-color: var(--phosphor); background: rgba(127,255,140,0.08); }
+
 .stamp {
   display: flex;
   flex-direction: column;

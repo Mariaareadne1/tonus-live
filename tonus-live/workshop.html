@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>First Effects · étude workshop · tonus</title>
+  <meta name="description" content="Learn étude, a live-coding language that reads like a violin part: notes, bar lines, dynamics, bowings and hairpins." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="workshop.css" />
+</head>
+<body>
+
+<header class="ws-top">
+  <a class="ws-brand" href="index.html">tonus.</a>
+  <span class="ws-crumb">étude <em>workshop</em></span>
+  <nav class="ws-links" aria-label="Site">
+    <a href="index.html">instrument</a>
+    <a href="workshop.html" aria-current="page">workshop</a>
+  </nav>
+</header>
+
+<div class="ws-layout">
+
+  <nav class="ws-side" aria-label="Workshop">
+    <details class="ws-side-fold" open>
+      <summary>contents</summary>
+      <p class="ws-side-head">étude workshop</p>
+      <ul>
+        <li><a href="#reading">Reading a score</a></li>
+        <li><a href="#top" class="is-current">First Effects</a></li>
+      </ul>
+      <p class="ws-side-head">first effects</p>
+      <ul>
+        <li><a href="#tone">tone</a></li>
+        <li><a href="#pattern-tone">pattern the tone</a></li>
+        <li><a href="#vibrato">vibrato</a></li>
+        <li><a href="#dynamics">dynamics</a></li>
+        <li><a href="#bowing">bowing</a></li>
+        <li><a href="#strokes">bow strokes</a></li>
+        <li><a href="#echo">echo</a></li>
+        <li><a href="#hall">hall</a></li>
+        <li><a href="#little-tune">little tune</a></li>
+        <li><a href="#seat">seat</a></li>
+        <li><a href="#tempo">tempo &amp; speed</a></li>
+        <li><a href="#hairpins">hairpins</a></li>
+        <li><a href="#over">over</a></li>
+        <li><a href="#recap">Recap</a></li>
+        <li><a href="#your-turn">Your turn</a></li>
+      </ul>
+      <p class="ws-side-head">elsewhere</p>
+      <ul>
+        <li><a href="index.html">tonus instrument →</a></li>
+      </ul>
+    </details>
+  </nav>
+
+  <main class="ws-main" id="top">
+
+    <h1>First Effects</h1>
+    <p class="ws-lede">
+      <strong>étude</strong> is a live-coding language that reads like the part on your music stand.
+      You write notes, bar lines, dynamics and bowings, and it plays them back in a loop while you edit.
+      In this lesson you'll learn the <em>effects</em>: how to make a phrase dark or bright, loud or soft,
+      long or short, close or far away.
+    </p>
+    <p class="ws-keys">
+      Press <kbd>▶</kbd> on any example, or click into the code and press <kbd data-mod>ctrl</kbd>+<kbd>enter</kbd>.
+      Edit while it plays and press <kbd data-mod>ctrl</kbd>+<kbd>enter</kbd> again to hear the change.
+      <kbd data-mod>ctrl</kbd>+<kbd>.</kbd> stops everything.
+    </p>
+
+    <!-- =============== READING A SCORE =============== -->
+    <h2 id="reading">Reading a score</h2>
+    <p>If you can read a violin part, you can almost read étude already. Here are the open strings, then a held E:</p>
+
+    <div class="card">
+      <div class="etude"><textarea>
+tempo Andante
+violin: | G3 D4 A4 E5 | E5 - - - |
+</textarea></div>
+    </div>
+
+    <div class="ws-table-wrap">
+      <table class="ws-table">
+        <thead><tr><th>write</th><th>means</th></tr></thead>
+        <tbody>
+          <tr><td><code>A4</code> <code>C#5</code> <code>Bb3</code></td><td>A note: letter, then <code>#</code> or <code>b</code>, then octave. Middle C is <code>C4</code>, the violin's A string is <code>A4</code>. If you leave off the octave, you get octave 4.</td></tr>
+          <tr><td><code>| … |</code></td><td>A bar. All the notes in a bar share it equally, so four notes in 4/4 are quarter notes and eight are eighths.</td></tr>
+          <tr><td><code>-</code></td><td>A tie: hold the note before for one more slot, even across a bar line.</td></tr>
+          <tr><td><code>r</code></td><td>A rest.</td></tr>
+          <tr><td><code>(E5 F5)</code></td><td>A beamed group. The notes share one slot, so two make eighths and three make a triplet.</td></tr>
+          <tr><td><code>D4+A4</code></td><td>A double stop: notes joined with <code>+</code> sound together.</td></tr>
+          <tr><td><code>A4*4</code></td><td>The same note four times.</td></tr>
+          <tr><td><code>|: … :|</code> <code>x3</code></td><td>Repeat signs. The passage plays twice, or as many times as <code>x3</code> says.</td></tr>
+          <tr><td><code>%</code></td><td>Simile: play the previous bar again.</td></tr>
+          <tr><td><code>tempo Allegro</code> <code>time 3/4</code> <code>key D major</code></td><td>Tempo (a marking or BPM), time signature and key signature, on their own lines. With a key signature, an <code>F</code> in D major plays F♯. Write <code>Fn</code> for a natural.</td></tr>
+          <tr><td><code>violin:</code> <code>cello:</code> <code>piano:</code> …</td><td>Starts a part. Several parts play together, like a score. Instruments: violin, viola, cello, bass, piano, harp, flute, organ, drums.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Everything at once, a little minuet with a repeat:</p>
+    <div class="card">
+      <div class="etude"><textarea>
+tempo 96
+time 3/4
+key D major
+violin: |: D5 (E5 F5) G5 | A5 - - | (B5 A5) (G5 F5) (E5 D5) | C5 - r :|
+cello:  |: D3 A3 A3 | % | G2 D3 D3 | A2 E3 E3 :|
+</textarea></div>
+      <div class="hint">
+        <ul>
+          <li>In D major, the <code>F5</code> and <code>C5</code> sound as F♯ and C♯. Change the key to <code>key D minor</code> and listen to the mood change.</li>
+          <li>The cello's <code>%</code> repeats its first bar.</li>
+        </ul>
+      </div>
+    </div>
+
+    <p>We have notes and bars, so now let's look at <strong>effects</strong>. Effects go on their own lines under a part, and they change only that part.</p>
+
+    <!-- =============== TONE =============== -->
+    <h2 id="effects">Some basic effects</h2>
+
+    <h3 id="tone">tone</h3>
+    <div class="card">
+      <div class="etude"><textarea>
+tempo 120
+bass: | (C2 C3)*4 | (Bb1 Bb2)*4 | (F2 F3)*4 | (Eb2 Eb3)*4 |
+  tone 800
+</textarea></div>
+      <div class="hint">
+        <p><code>tone</code> is where your bow meets the string. Under the hood it's a low-pass filter: it takes away the high overtones.</p>
+        <ul>
+          <li>Change <code>tone 800</code> to <code>tone tasto</code> or <code>tone 200</code>. Notice how it gets muffled, like bowing over the fingerboard.</li>
+          <li>Now try <code>tone ponticello</code> or <code>tone 5000</code>. Right by the bridge it turns glassy and bright.</li>
+          <li>The named tones, from dark to bright: <code>flautando</code> <code>tasto</code> <code>dolce</code> <code>normale</code> <code>ponticello</code>.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 id="pattern-tone">pattern the tone</h3>
+    <div class="card">
+      <div class="etude"><textarea>
+tempo 120
+bass: | (C2 C3)*4 | (Bb1 Bb2)*4 | (F2 F3)*4 | (Eb2 Eb3)*4 |
+  tone tasto ponticello tasto ponticello
+</textarea></div>
+      <div class="hint">
+        <ul>
+          <li>Try adding more values.</li>
+          <li>Notice that the pattern in <code>tone</code> doesn't change the rhythm. Each note just takes the next value in the list, then the list starts over.</li>
+          <li>Now write it with bar lines: <code>tone | tasto | ponticello |</code>. With bar lines you get one value per measure instead of one per note.</li>
+        </ul>
+      </div>
+    </div>
+    <p>Later we'll learn how to change these smoothly with hairpins…</p>
+
+    <!-- =============== VIBRATO =============== -->
+    <h3 id="vibrato">vibrato</h3>
+    <div class="card">
+      <div class="etude"><textarea>
+tempo 60
+violin: | C4+G4+E5 | Bb3+F4+D5 | A3+F4+C5 | Bb3+G4+Eb5 |
+  bowing legato
+  vibrato none slow wide fast
+</textarea></div>
+      <div class="hint">
+        <ul>
+          <li>The <code>+</code> stacks notes into triple stops. Each chord gets the next kind of vibrato.</li>
+          <li>The choices are <code>none</code> <code>slow</code> <code>normal</code> <code>fast</code> <code>wide</code>. A number sets the width in cents. Try <code>vibrato 40</code>.</li>
+          <li>Like a real player, the vibrato blooms a moment after the bow starts.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- =============== DYNAMICS =============== -->
+    <h3 id="dynamics">dynamics</h3>
+    <div class="card">
+      <div class="etude"><textarea>
+drums hats: | hat*16 |
+  dynamics pp f
+drums kit: | kick kick+snare kick kick+snare |
+</textarea></div>
+      <div class="hint">
+        <p>Rhythm is all about dynamics!</p>
+        <ul>
+          <li>Delete the <code>dynamics</code> line and notice how flat it sounds.</li>
+          <li>Bring it back by undoing (<kbd data-mod>ctrl</kbd>+<kbd>z</kbd>).</li>
+          <li>Use any of <code>ppp</code> <code>pp</code> <code>p</code> <code>mp</code> <code>mf</code> <code>f</code> <code>ff</code> <code>fff</code>, or a number from 0 to 1. Parts are <code>mf</code> unless you say otherwise.</li>
+          <li><code>drums hats:</code> and <code>drums kit:</code> are two drum parts. The word after the instrument is just a label.</li>
+        </ul>
+      </div>
+    </div>
+
+    <p>Let's combine all of the above into a little tune:</p>
+    <div class="card">
+      <div class="etude"><textarea>
+tempo 120
+drums hats: | hat*8 |
+  dynamics pp f
+drums kit: | kick kick+snare kick kick+snare |
+bass: | (C2 C3)*4 | (Bb1 Bb2)*4 | (F2 F3)*4 | (Eb2 Eb3)*4 |
+  tone tasto ponticello tasto ponticello
+violin: | C4+G4+E5 | Bb3+F4+D5 | A3+F4+C5 | Bb3+G4+Eb5 |
+  bowing legato
+  vibrato none slow wide fast
+</textarea></div>
+    </div>
+
+    <!-- =============== BOWING =============== -->
+    <h3 id="bowing">shape the sound with the bow</h3>
+    <div class="card">
+      <div class="etude"><textarea>
+cello: | C3 Bb2 F3 Eb3 |
+  tone 600
+  bowing attack 0.1 decay 0.1 sustain 0.25 release 0.2
+</textarea></div>
+      <div class="hint">
+        <p>Try to find out what the numbers do. Compare these:</p>
+        <ul>
+          <li>attack: <code>0.5</code> vs <code>0</code></li>
+          <li>decay: <code>0.5</code> vs <code>0</code></li>
+          <li>sustain: <code>1</code> vs <code>0.25</code> vs <code>0</code></li>
+          <li>release: <code>0</code> vs <code>0.5</code> vs <code>1</code></li>
+        </ul>
+        <p>Can you guess what they do?</p>
+        <details>
+          <summary>Click to see solution</summary>
+          <ul>
+            <li><strong>attack</strong>: how many seconds the bow takes to bite, from silence to full sound.</li>
+            <li><strong>decay</strong>: how quickly the sound relaxes after that first bite.</li>
+            <li><strong>sustain</strong>: how loud the note stays while the bow keeps moving, from 0 to 1. At <code>0</code> the note dies away like a pluck.</li>
+            <li><strong>release</strong>: how long the string keeps ringing after the bow lifts at the end of the note.</li>
+          </ul>
+          <p>You only need to write the ones you want to change.</p>
+        </details>
+      </div>
+    </div>
+
+    <h3 id="strokes">bow strokes</h3>
+    <p>You rarely need the numbers, because the strokes you already know are built in:</p>
+    <div class="card">
+      <div class="etude"><textarea>
+tempo 100
+violin: | A4*4 | E5*4 | (A4 B4 C#5 D5)*2 | E5*4 |
+  bowing legato
+</textarea></div>
+      <div class="hint">
+        <ul>
+          <li>Change <code>legato</code> to <code>detache</code>, <code>martele</code>, <code>staccato</code>, <code>spiccato</code> and finally <code>pizz</code>.</li>
+          <li>Strokes can be patterned like everything else. Try <code>bowing martele spiccato spiccato spiccato</code>.</li>
+          <li>String parts play <code>detache</code> unless you say otherwise.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- =============== ECHO =============== -->
+    <h3 id="echo">echo</h3>
+    <div class="card">
+      <div class="etude"><textarea>
+tempo 110
+violin: | r (D4+A4+F5 r) r (D4+A4+F5 r) | % | r (D4+Bb4+G5 r) r (D4+Bb4+G5 r) | % |
+  bowing pizz
+  echo 0.5
+drums: | kick rim |
+  echo 0.5
+</textarea></div>
+      <div class="hint">
+        <ul>
+          <li>Try some echo amounts between 0 and 1.</li>
+          <li>What happens if you write <code>echo 0.8 sixteenth</code>? Can you guess what the second word does?</li>
+          <li>What happens with <code>echo 0.8 sixteenth 0.8</code>? Can you guess what the third number does?</li>
+        </ul>
+        <details>
+          <summary>Click to see solution</summary>
+          <ul>
+            <li>The first number is how loud the echo is.</li>
+            <li>The second word is the time between echoes, as a note value: <code>whole</code> <code>half</code> <code>quarter</code> <code>dotted-eighth</code> <code>eighth</code> <code>triplet</code> <code>sixteenth</code>. The default is <code>eighth</code>.</li>
+            <li>The third number is how long it keeps bouncing back, from <code>0</code> (once) to <code>0.95</code> (almost forever).</li>
+          </ul>
+        </details>
+      </div>
+    </div>
+
+    <!-- =============== HALL =============== -->
+    <h3 id="hall">hall, aka reverb</h3>
+    <div class="card">
+      <div class="etude"><textarea>
+tempo 80
+key D minor
+violin: | D5 - - A4 | B4 - A4 G4 | F4 - E4 F4 | D4 - - r |
+  bowing legato
+  hall cathedral
+</textarea></div>
+      <div class="hint">
+        <ul>
+          <li>Try different halls: <code>dry</code> <code>room</code> <code>studio</code> <code>chapel</code> <code>concert</code> <code>cathedral</code>, or a number of seconds like <code>hall 10</code>.</li>
+          <li>Add an echo too!</li>
+          <li>Did you notice the <code>B4</code> sounds as B♭? That's the <code>key D minor</code> signature at work.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- =============== LITTLE TUNE =============== -->
+    <h3 id="little-tune">little tune</h3>
+    <div class="card">
+      <div class="etude"><textarea>
+tempo 110
+key D minor
+violin pizz: | r (D4+A4+F5 r) r (D4+A4+F5 r) | % | r (D4+B4+G5 r) r (D4+B4+G5 r) | % |
+  bowing pizz
+  echo 0.5
+drums: | kick rim |
+  echo 0.5
+violin: | D5 - - A4 | B4 - A4 G4 | F4 - E4 F4 | D4 - - r |
+  bowing legato
+  hall cathedral
+  dynamics mp
+</textarea></div>
+    </div>
+
+    <p>Let's add a bass to make this complete:</p>
+    <div class="card">
+      <div class="etude"><textarea>
+tempo 110
+key D minor
+violin pizz: | r (D4+A4+F5 r) r (D4+A4+F5 r) | % | r (D4+B4+G5 r) r (D4+B4+G5 r) | % |
+  bowing pizz
+  echo 0.5
+drums: | kick rim |
+  echo 0.5
+violin: | D5 - - A4 | B4 - A4 G4 | F4 - E4 F4 | D4 - - r |
+  bowing legato
+  hall cathedral
+  dynamics mp
+bass: | D2 (r D2) A2 (G2 F2) | (D2 r) (D2 r) D2 r | % | (D2 r) (D2 r) F2 r |
+  tone tasto
+</textarea></div>
+      <div class="hint">
+        <ul>
+          <li>Try writing <code>tacet</code> under one of the parts. Like in a real part, it means "don't play".</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- =============== SEAT =============== -->
+    <h3 id="seat">seat</h3>
+    <div class="card">
+      <div class="etude"><textarea>
+violin: | A4 C#5 E5 A5 |
+  seat left center-left center-right right
+</textarea></div>
+      <div class="hint">
+        <ul>
+          <li>Headphones help here. <code>seat</code> places the sound from left to right, like seats on a stage: <code>left</code> <code>center-left</code> <code>center</code> <code>center-right</code> <code>right</code>, or a number from <code>-1</code> to <code>1</code>.</li>
+          <li>In an orchestra the first violins sit on the conductor's left and the cellos on the right. Try a violin part with <code>seat left</code> and a cello part with <code>seat right</code>.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- =============== TEMPO =============== -->
+    <h3 id="tempo">tempo &amp; speed</h3>
+    <p><code>tempo</code> changes the whole piece. <code>speed</code> changes one part: <code>half</code> time, <code>double</code> time, or any number.</p>
+    <div class="card">
+      <div class="etude"><textarea>
+tempo Moderato
+drums: | kick+hat hat snare+hat hat |
+  speed half
+violin: | (E5 D5) (C5 B4) (A4 G#4) (A4 B4) |
+  bowing spiccato
+</textarea></div>
+      <div class="hint">
+        <ul>
+          <li>Change <code>half</code> to <code>double</code>. Then try <code>speed 1.5</code>.</li>
+          <li>Notice that the violin keeps its own pace. Only the drums changed.</li>
+          <li>Now change <code>Moderato</code> to <code>Adagio</code> or <code>Presto</code>. The markings are grave, largo, lento, adagio, andante, moderato, allegretto, allegro, vivace and presto, or just write a number in BPM.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- =============== HAIRPINS =============== -->
+    <h3 id="hairpins">hairpins</h3>
+    <p>So far every value has changed in steps. With hairpins, <code>&lt;</code> and <code>&gt;</code>, values move smoothly instead:</p>
+    <div class="card">
+      <div class="etude"><textarea>
+drums: | hat*16 |
+  dynamics pp < ff
+</textarea></div>
+      <div class="hint">
+        <ul>
+          <li>The score roll under the code shows dynamics as brightness. Watch it swell.</li>
+          <li>Try <code>ff &gt; pp</code> for a diminuendo, and <code>pp &lt; ff &gt; pp</code> for a messa di voce.</li>
+          <li>The hairpin stretches across the whole part, then starts again.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>hairpins on tone and seat</h3>
+    <p>Hairpins work on <code>tone</code> and <code>seat</code> too:</p>
+    <div class="card">
+      <div class="etude"><textarea>
+drums: | hat*16 |
+  tone 500 < 4000
+</textarea></div>
+      <div class="hint">
+        <ul>
+          <li>What happens if you flip it to <code>4000 &gt; 500</code>?</li>
+          <li>Try <code>seat left &lt; right</code> on a new line.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 id="over">over</h3>
+    <p>Use <code>over</code> to stretch a hairpin across more bars:</p>
+    <div class="card">
+      <div class="etude"><textarea>
+tempo 120
+bass: | (C2 C3)*4 | (Bb1 Bb2)*4 | (F2 F3)*4 | (Eb2 Eb3)*4 |
+  tone tasto < ponticello > tasto over 8
+</textarea></div>
+      <div class="hint">
+        <ul>
+          <li>The whole sweep now takes 8 bars to come back around. Try <code>over 2</code> and <code>over 16</code>.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- =============== RECAP =============== -->
+    <h2 id="recap">Recap</h2>
+    <div class="ws-table-wrap">
+      <table class="ws-table ws-recap">
+        <thead><tr><th>name</th><th>on the violin</th><th>example</th></tr></thead>
+        <tbody>
+          <tr><td>tone</td><td>where the bow meets the string</td><td><div class="etude" data-compact><textarea>
+bass: | C2 C3 C2 C3 |
+  tone | tasto | ponticello |
+</textarea></div></td></tr>
+          <tr><td>vibrato</td><td>left-hand vibrato</td><td><div class="etude" data-compact><textarea>
+violin: | C5 Eb5 G5 - |
+  vibrato none slow wide
+</textarea></div></td></tr>
+          <tr><td>dynamics</td><td>pp … ff</td><td><div class="etude" data-compact><textarea>
+drums: | hat*16 |
+  dynamics pp f
+</textarea></div></td></tr>
+          <tr><td>bowing</td><td>bow strokes</td><td><div class="etude" data-compact><textarea>
+violin: | A4*4 | E5*4 |
+  bowing | staccato | legato |
+</textarea></div></td></tr>
+          <tr><td>echo</td><td>a hall with a far wall</td><td><div class="etude" data-compact><textarea>
+drums: | kick rim kick clap |
+  echo 0.5
+</textarea></div></td></tr>
+          <tr><td>hall</td><td>the room you play in</td><td><div class="etude" data-compact><textarea>
+drums: | kick rim kick clap |
+  hall concert
+</textarea></div></td></tr>
+          <tr><td>seat</td><td>where you sit on stage</td><td><div class="etude" data-compact><textarea>
+drums: | kick rim kick clap |
+  seat left right
+</textarea></div></td></tr>
+          <tr><td>speed</td><td>half time, double time</td><td><div class="etude" data-compact><textarea>
+drums: | kick rim kick clap |
+  speed double
+</textarea></div></td></tr>
+          <tr><td>tacet</td><td>don't play</td><td><div class="etude" data-compact><textarea>
+drums: | kick rim kick clap |
+  tacet
+violin: | A4 E5 |
+</textarea></div></td></tr>
+          <tr><td>hairpins</td><td>cresc. and dim.</td><td><div class="etude" data-compact><textarea>
+drums: | hat*16 |
+  dynamics pp < ff
+</textarea></div></td></tr>
+          <tr><td>over</td><td>a long hairpin</td><td><div class="etude" data-compact><textarea>
+drums: | hat*16 |
+  tone 300 < 6000 over 4
+</textarea></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- =============== YOUR TURN =============== -->
+    <h2 id="your-turn">Your turn</h2>
+    <p>A blank page and a quartet. Make it yours.</p>
+    <div class="card">
+      <div class="etude"><textarea>
+tempo Andante
+key G major
+violin I: | B5 - A5 G5 | F5 - E5 D5 | C5 - B4 A4 | G4 - - r |
+  bowing legato
+  seat left
+  hall concert
+violin II: | D5 - C5 B4 | A4 - G4 F4 | E4 - D4 C4 | B3 - - r |
+  bowing legato
+  seat center-left
+  hall concert
+  dynamics mp
+viola: | G4 - - - | D4 - - - | A3 - - - | G3 - - - |
+  seat center-right
+  hall concert
+  dynamics mp
+cello: | G2 - - - | B2 - - - | C3 - D3 - | G2 - - - |
+  seat right
+  hall concert
+</textarea></div>
+    </div>
+
+    <footer class="ws-foot">
+      <p>Back to the <a href="index.html">tonus instrument</a>.</p>
+    </footer>
+  </main>
+</div>
+
+<script type="module">
+  import { initBlocks } from "./etude/blocks.js";
+  initBlocks();
+  if (window.matchMedia("(max-width: 860px)").matches) {
+    document.querySelector(".ws-side-fold").removeAttribute("open");
+  }
+  if (/Mac|iPhone|iPad/.test(navigator.platform)) {
+    document.querySelectorAll("kbd[data-mod]").forEach((k) => { k.textContent = "⌘"; });
+  }
+</script>
+</body>
+</html>
