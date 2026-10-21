@@ -155,6 +155,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const FILT_ENV_DECAY  = 0.20;
   const FILT_ENV_AMOUNT = 4500;
 
+  // === Code language: "strudel" or "etude" (see section 22) ===
+  const LANG_KEY = "tonus-lang";
+  let lang = (() => {
+    try { return localStorage.getItem(LANG_KEY) === "etude" ? "etude" : "strudel"; }
+    catch (_) { return "strudel"; }
+  })();
+  let etude = null;   // étude bridge module, loaded in section 22
+
   // === Harmony engine (preserved from model 01) ===
 
   const ROOT_NAMES = ["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
@@ -370,7 +378,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const out = document.querySelector(`output[for="${el.id}"]`);
     const update = () => {
       const raw = fxValue(name);
-      if (out) out.textContent = fxFormat(name, raw);
+      if (out) out.textContent = readout(name, raw);
       applyMasterParam(name, raw);
       updateAdsrSummary();
     };
@@ -381,13 +389,31 @@ document.addEventListener("DOMContentLoaded", () => {
   ["gain","lpf","lpq","hpf","attack","decay","sustain","release",
    "room","delay","delaytime","pan","crush","clip"].forEach(bindEffectSlider);
 
+  // Readout text. In étude mode, values also get their étude name.
+  function readout(name, raw) {
+    const base = fxFormat(name, raw);
+    if (lang !== "etude" || !etude) return base;
+    switch (name) {
+      case "gain":      return `${etude.dynamicName(raw)} · ${base}`;
+      case "lpf":       return `${etude.toneName(raw)} · ${base}`;
+      case "room":      return etude.hallName(raw) ?? "dry";
+      case "delaytime": return `${etude.noteValueName(raw, Number(ui.bpm.value))} · ${base}s`;
+      case "pan":       return etude.seatName(raw);
+      default:          return base;
+    }
+  }
+
   function updateAdsrSummary() {
     const s = $("adsrSummary");
     if (!s) return;
-    s.textContent = [
-      fxValue("attack"), fxValue("decay"),
-      fxValue("sustain"), fxValue("release")
-    ].map(v => v.toString()).join(" : ");
+    const adsr = [fxValue("attack"), fxValue("decay"), fxValue("sustain"), fxValue("release")];
+    const numbers = adsr.map(v => v.toString()).join(" : ");
+    if (lang === "etude" && etude) {
+      const [attack, decay, sustain, release] = adsr;
+      s.textContent = `${etude.bowingName({ attack, decay, sustain, release }).name} ≈ ${numbers}`;
+    } else {
+      s.textContent = numbers;
+    }
   }
   updateAdsrSummary();
 
@@ -507,10 +533,20 @@ document.addEventListener("DOMContentLoaded", () => {
     gm_lead_1_square:          { type: "square",   partials: [1, 0.0, 0.3],             detune: 4 },
     gm_lead_2_sawtooth:        { type: "sawtooth", partials: [1, 0.4, 0.2],             detune: 6 },
     gm_xylophone:              { type: "sine",     partials: [1, 0.0, 0.6, 0.0, 0.3],   detune: 0 },
+    // étude instruments (LANG: étude). octave shifts the keyboard for low strings.
+    violin: { type: "sawtooth", partials: [1, 0.7, 0.5, 0.3, 0.2],  detune: 8 },
+    viola:  { type: "sawtooth", partials: [1, 0.8, 0.45, 0.25],     detune: 7, octave: -1 },
+    cello:  { type: "sawtooth", partials: [1, 0.9, 0.5, 0.2],       detune: 6, octave: -1 },
+    bass:   { type: "sawtooth", partials: [1, 0.5, 0.2],            detune: 4, octave: -2 },
+    piano:  { type: "triangle", partials: [1, 0.6, 0.3, 0.15, 0.08], detune: 2 },
+    harp:   { type: "triangle", partials: [1, 0.5, 0.4, 0.2, 0.1],  detune: 3 },
+    flute:  { type: "sine",     partials: [1, 0.15, 0.05],          detune: 3, octave: 1 },
+    organ:  { type: "sine",     partials: [1, 0.5, 0, 0.25, 0, 0, 0, 0.1], detune: 0 },
   };
 
   function buildGMVoice(sound, freq, dest, now) {
     const r = GM_RECIPES[sound] || GM_RECIPES.gm_acoustic_grand_piano;
+    freq = freq * Math.pow(2, r.octave || 0);
     const oscs = [];
     const norm = r.partials.reduce((a,b) => a + b, 0);
     r.partials.forEach((w, i) => {
@@ -892,6 +928,7 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   function applyPreset(name) {
+    if (lang === "etude" && ETUDE_PRESETS[name]) return applyEtudePreset(ETUDE_PRESETS[name]);
     const p = PRESETS[name];
     if (!p) return;
     Object.entries(p).forEach(([k, v]) => {
@@ -1125,6 +1162,12 @@ document.addEventListener("DOMContentLoaded", () => {
       ? 0
       : Math.max(...recorder.events.map(e => e.tRel + (e.dur || 0)));
     durEl.textContent = total.toFixed(1);
+    if (lang === "etude" && etude) {
+      codeEl.innerHTML = etude.highlight(compiled
+        ? etudeRecordingCode("live")
+        : "// play a note, chord or beat to start writing a part\n// hit FINALIZE to freeze it as a looping layer");
+      return;
+    }
     if (!compiled) {
       codeEl.innerHTML = highlightStrudel(
 `// play a note, chord, or beat to start building a pattern
@@ -1135,6 +1178,16 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
     codeEl.innerHTML = highlightStrudel(patternToStrudelCode(compiled, "live · recording"));
+  }
+
+  // The recording so far as an étude part, using the current instrument and sliders.
+  function etudeRecordingCode(label) {
+    return etude.recordingToEtude(recorder.events.map(e => ({ ...e })), {
+      bpm: Number(ui.bpm.value),
+      instrument: etude.instrumentFor(ui.soundPick.value),
+      label,
+      fx: snapshotEffects(),
+    });
   }
 
   $("clearRecBtn").addEventListener("click", clearRecording);
@@ -1156,6 +1209,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const layer = {
       id,
       code,
+      etude: etude ? `// layer ${id}\n${etudeRecordingCode(`L${id}`)}` : null,
       compiled,
       fx: compiled.effectsSnapshot,
       muted: false,
@@ -1238,7 +1292,7 @@ document.addEventListener("DOMContentLoaded", () => {
             <button class="layer-btn del" data-act="del">×</button>
           </div>
         </div>
-        <pre class="layer-code">${highlightStrudel(layer.code)}</pre>
+        <pre class="layer-code">${layerCodeHtml(layer)}</pre>
       `;
       card.querySelector('[data-act="mute"]').addEventListener("click", () => {
         layer.muted = !layer.muted;
@@ -1254,14 +1308,18 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  function layerCodeHtml(layer) {
+    return lang === "etude" && etude && layer.etude ? etude.highlight(layer.etude) : highlightStrudel(layer.code);
+  }
+
   $("muteAllBtn").addEventListener("click", () => {
     const allMuted = layers.every(l => l.muted);
     layers.forEach(l => l.muted = !allMuted);
     renderLayers();
   });
 
-  // Export: produce a full Strudel script with all active layers + drum pattern
-  $("exportBtn").addEventListener("click", () => {
+  // Export: a full script with every layer + the drum pattern, in either language.
+  function buildStrudelExport() {
     const parts = [];
     parts.push(`// TONUS export · ${new Date().toLocaleString()}`);
     parts.push(`setcpm(${(Number(ui.bpm.value)/4).toFixed(0)})`);
@@ -1274,17 +1332,58 @@ document.addEventListener("DOMContentLoaded", () => {
       parts.push("");
       parts.push(generateDrumStrudel());
     }
-    const out = parts.join("\n");
-    // Copy to clipboard if possible; show in a download blob otherwise.
-    navigator.clipboard?.writeText(out).catch(() => {});
-    // Also offer a download
-    const blob = new Blob([out], { type: "text/plain" });
+    return parts.join("\n");
+  }
+
+  function buildEtudeExport() {
+    const parts = [`// TONUS export · ${new Date().toLocaleString()}`, `tempo ${ui.bpm.value}`, ""];
+    layers.forEach(l => {
+      if (l.etude) parts.push(l.muted ? `${l.etude}\n  tacet` : l.etude, "");
+    });
+    if (recorder.events.length) parts.push("// still recording", etudeRecordingCode("live"), "");
+    if (drumPatternHasContent()) parts.push(etude.drumsToEtude(drumGrid, DRUMS.map(d => d.code)));
+    return parts.join("\n").trim() + "\n";
+  }
+
+  // Copy to the clipboard if possible, and offer a download.
+  function saveText(text, filename) {
+    navigator.clipboard?.writeText(text).catch(() => {});
+    const blob = new Blob([text], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `tonus-${Date.now()}.strudel.js`;
+    a.download = filename;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  const exportMenu = document.createElement("div");
+  exportMenu.className = "export-menu";
+  exportMenu.hidden = true;
+  exportMenu.innerHTML = `
+    <button type="button" data-x="etude" data-needs-etude>étude · download .etude</button>
+    <button type="button" data-x="repl" data-needs-etude>open in étude REPL ↗</button>
+    <button type="button" data-x="strudel">strudel · download .js</button>
+    <button type="button" data-x="strudelcc" data-needs-etude>open in strudel.cc ↗</button>`;
+  $("exportBtn").after(exportMenu);
+  $("exportBtn").addEventListener("click", (e) => {
+    e.stopPropagation();
+    exportMenu.querySelectorAll("[data-needs-etude]").forEach(b => { b.disabled = !etude; });
+    exportMenu.hidden = !exportMenu.hidden;
+  });
+  document.addEventListener("click", (e) => {
+    if (!exportMenu.contains(e.target)) exportMenu.hidden = true;
+  });
+  exportMenu.addEventListener("click", (e) => {
+    const act = e.target.closest("[data-x]")?.dataset.x;
+    if (!act) return;
+    exportMenu.hidden = true;
+    const stamp = Date.now();
+    if (act === "strudel") return saveText(buildStrudelExport(), `tonus-${stamp}.strudel.js`);
+    if (!etude) return;
+    if (act === "etude") return saveText(buildEtudeExport(), `tonus-${stamp}.etude`);
+    if (act === "repl") return window.open(etude.replUrl(buildEtudeExport()), "_blank", "noopener");
+    if (act === "strudelcc") window.open(etude.strudelUrl(buildStrudelExport()), "_blank", "noopener");
   });
 
   /* =========================================================
@@ -1537,6 +1636,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const layer = {
       id,
       code: `// drums · captured layer ${id}\n` + code,
+      etude: etude ? `// drums · layer ${id}\n${etude.drumsToEtude(drumGrid, DRUMS.map(d => d.code), `L${id}`)}` : null,
       isDrum: true,
       pattern: drumGrid.map(row => row.slice()),
       muted: false,
@@ -1685,4 +1785,192 @@ document.addEventListener("DOMContentLoaded", () => {
   $("serial").textContent =
     Math.floor(Math.random() * 9000 + 1000) + "·" +
     Math.floor(Math.random() * 9000 + 1000);
+
+  /* =========================================================
+     22. LANGUAGE MODE — strudel ⇄ étude
+     =========================================================
+     LANG: étude renames the controls in string-player terms, adds
+     quick picks (pp…ff, tasto…ponticello, bow strokes, halls, seats),
+     swaps in étude instruments and presets, and writes the recording,
+     layers and export as étude. The audio engine is the same.
+  */
+
+  const LABELS = {
+    soundPick: [".sound()", "instrument"],
+    gain:      [".gain()", "dynamics"],
+    lpf:       [".lpf()", "tone"],
+    lpq:       [".lpq()", "resonance"],
+    hpf:       [".hpf()", "low cut"],
+    attack:    [".attack()", "attack"],
+    decay:     [".decay()", "decay"],
+    sustain:   [".sustain()", "sustain"],
+    release:   [".release()", "release"],
+    room:      [".room()", "hall"],
+    delay:     [".delay()", "echo"],
+    delaytime: [".delaytime()", "echo time"],
+    pan:       [".pan()", "seat"],
+    crush:     [".crush()", "crush"],
+    clip:      [".clip()", "clip"],
+  };
+  const STRUDEL_ONLY = ["lpq", "hpf", "crush", "clip"];
+  // panel: [strudel title, étude title, strudel tag, étude tag]
+  const PANEL_TEXT = {
+    ".panel-tone":   ["tone", "instrument", "SOUND · GAIN", "INSTRUMENT · DYNAMICS"],
+    ".panel-filter": ["filter", "tone", "LPF · LPQ · HPF", "TASTO ↔ PONTICELLO"],
+    ".panel-env":    ["envelope", "bowing", "ADSR · per note", "BOW STROKE · per note"],
+    ".panel-fx":     ["fx", "space", "SPACE · GRIT · MOTION", "HALL · ECHO · SEAT"],
+    ".panel-right":  ["live code", "live score", "SIGNAL · STRUDEL OUTPUT", "SIGNAL · ÉTUDE OUTPUT"],
+  };
+  const FILTER_HINT_ETUDE = '<span class="kbd">i</span> tasto = bow over the fingerboard, dark · ponticello = by the bridge, bright';
+  const filterHint = document.querySelector(".panel-filter .hint-block");
+  const filterHintStrudel = filterHint ? filterHint.innerHTML : "";
+
+  // tonus room amount for each étude hall (matches hallName in the bridge)
+  const HALL_ROOM = { dry: 0, room: 0.15, studio: 0.35, chapel: 0.55, concert: 0.75, cathedral: 0.95 };
+  const ECHO_VALUES = ["sixteenth", "eighth", "dotted-eighth", "quarter", "half"];
+  const ETUDE_PRESETS = {
+    legatoViolin:   { label: "legato violin",   sound: "violin", dynamics: "mf", tone: "normale", bowing: "legato",   hall: "concert" },
+    pizzicato:      { label: "pizzicato",       sound: "violin", dynamics: "mf", tone: "dolce",   bowing: "pizz",     hall: "studio" },
+    spiccatoViola:  { label: "spiccato viola",  sound: "viola",  dynamics: "mp", tone: "normale", bowing: "spiccato", hall: "room" },
+    tastoCello:     { label: "sul tasto cello", sound: "cello",  dynamics: "p",  tone: "tasto",   bowing: "legato",   hall: "chapel" },
+    cathedralFlute: { label: "cathedral flute", sound: "flute",  dynamics: "mp", tone: "dolce",   bowing: "legato",   hall: "cathedral" },
+    concertHarp:    { label: "concert harp",    sound: "harp",   dynamics: "mf", tone: "normale", bowing: "pizz",     hall: "concert" },
+  };
+
+  // natural value → slider position (inverse of EFFECT_MAP)
+  const SLIDER_FOR = {
+    gain:      v => v * 100,
+    lpf:       hz => (Math.log(hz / 200) / Math.log(12000 / 200)) * 100,
+    attack:    sec => ((sec - 0.001) / 1.999) * 100,
+    decay:     sec => ((sec - 0.001) / 1.999) * 100,
+    sustain:   v => v * 100,
+    release:   sec => ((sec - 0.001) / 3.999) * 100,
+    room:      v => v * 100,
+    delaytime: sec => ((sec - 0.05) / 0.95) * 100,
+    pan:       v => v * 100,
+  };
+
+  function setSlider(name, natural) {
+    const el = ui[name];
+    if (!el) return;
+    el.value = String(Math.round(Math.max(0, Math.min(100, SLIDER_FOR[name](natural)))));
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  function setBowing(name) {
+    const b = etude.BOWINGS[name];
+    ["attack", "decay", "sustain", "release"].forEach(k => setSlider(k, b[k]));
+  }
+
+  function applyEtudePreset(p) {
+    ui.soundPick.value = p.sound;
+    ui.soundPick.dispatchEvent(new Event("change", { bubbles: true }));
+    setSlider("gain", etude.DYNAMICS[p.dynamics]);
+    setSlider("lpf", etude.TONES[p.tone]);
+    setBowing(p.bowing);
+    setSlider("room", HALL_ROOM[p.hall]);
+  }
+
+  // A row of quick-pick chips under a control; shown only in étude mode.
+  function addChips(afterEl, names, onPick) {
+    const row = document.createElement("div");
+    row.className = "etude-chips";
+    row.innerHTML = names.map(n => `<button type="button" class="etude-chip" data-pick="${n}">${n}</button>`).join("");
+    row.addEventListener("click", (e) => {
+      const pick = e.target.closest("[data-pick]")?.dataset.pick;
+      if (pick) onPick(pick);
+    });
+    afterEl.after(row);
+  }
+
+  function buildEtudeControls() {
+    addChips(ui.gain, Object.keys(etude.DYNAMICS), n => setSlider("gain", etude.DYNAMICS[n]));
+    addChips(ui.lpf, Object.keys(etude.TONES), n => setSlider("lpf", etude.TONES[n]));
+    addChips(document.querySelector(".adsr-grid"), Object.keys(etude.BOWINGS), setBowing);
+    addChips(ui.room, Object.keys(HALL_ROOM), n => setSlider("room", HALL_ROOM[n]));
+    addChips(ui.delaytime, ECHO_VALUES, n => {
+      setSlider("delaytime", (etude.NOTE_VALUES[n] * 60) / Number(ui.bpm.value));
+    });
+    addChips(ui.pan, Object.keys(etude.SEATS), n => setSlider("pan", (etude.SEATS[n] + 1) / 2));
+  }
+
+  const strudelSoundOptions = ui.soundPick.innerHTML;
+  const strudelPresetOptions = ui.preset.innerHTML;
+
+  function swapSoundsAndPresets() {
+    const current = ui.soundPick.value;
+    if (lang === "etude") {
+      ui.soundPick.innerHTML = `<optgroup label="── étude instruments ──">${
+        etude.ETUDE_INSTRUMENTS.map(i => `<option value="${i}">${i}</option>`).join("")}</optgroup>`;
+      ui.soundPick.value = etude.instrumentFor(current);
+      ui.preset.innerHTML = `<option value="custom">— custom —</option>${
+        Object.entries(ETUDE_PRESETS).map(([k, p]) => `<option value="${k}">${p.label}</option>`).join("")}`;
+    } else {
+      ui.soundPick.innerHTML = strudelSoundOptions;
+      ui.soundPick.value = etude.INSTRUMENT_TO_SOUND[current] ?? current;
+      ui.preset.innerHTML = strudelPresetOptions;
+    }
+    ui.soundPick.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  function relabel() {
+    const isEtude = lang === "etude";
+    Object.entries(LABELS).forEach(([id, [strudelText, etudeText]]) => {
+      const label = document.querySelector(`label[for="${id}"]`);
+      const textNode = label && [...label.childNodes].find(n => n.nodeType === Node.TEXT_NODE && n.textContent.trim());
+      if (textNode) textNode.textContent = `${isEtude ? etudeText : strudelText} `;
+    });
+    STRUDEL_ONLY.forEach(id => ui[id]?.closest(".ctl")?.classList.toggle("is-strudel-only", isEtude));
+    Object.entries(PANEL_TEXT).forEach(([sel, [st, et, stag, etag]]) => {
+      const panel = document.querySelector(sel);
+      if (!panel) return;
+      panel.querySelector(".panel-title").textContent = isEtude ? et : st;
+      panel.querySelector(".panel-tag").textContent = isEtude ? etag : stag;
+    });
+    const adsrLabels = document.querySelectorAll(".adsr-label");
+    if (adsrLabels.length === 2) {
+      adsrLabels[0].textContent = isEtude ? "bowing" : ".adsr(";
+      adsrLabels[1].textContent = isEtude ? "" : ")";
+    }
+    if (filterHint) filterHint.innerHTML = isEtude ? FILTER_HINT_ETUDE : filterHintStrudel;
+    document.querySelectorAll(".drum-pad").forEach(pad => {
+      const code = DRUMS[Number(pad.dataset.drum)].code;
+      pad.querySelector(".pad-code").textContent = isEtude ? etude.DRUM_CODE_TO_ETUDE[code] : code;
+    });
+  }
+
+  function applyLang(next) {
+    lang = next === "etude" && etude ? "etude" : "strudel";
+    try { localStorage.setItem(LANG_KEY, lang); } catch (_) { /* private mode */ }
+    document.body.classList.toggle("lang-etude", lang === "etude");
+    document.querySelectorAll(".lang-opt").forEach(b => b.setAttribute("aria-checked", String(b.dataset.lang === lang)));
+    if (etude) {
+      relabel();
+      swapSoundsAndPresets();
+    }
+    Object.keys(SLIDER_FOR).forEach(n => ui[n]?.dispatchEvent(new Event("input", { bubbles: true })));
+    updateAdsrSummary();
+    refreshRecordingView();
+    renderLayers();
+  }
+
+  document.querySelectorAll(".lang-opt").forEach(btn => {
+    btn.addEventListener("click", () => applyLang(btn.dataset.lang));
+  });
+
+  import("./etude/tonus-bridge.js")
+    .then((mod) => {
+      etude = mod;
+      buildEtudeControls();
+      applyLang(lang);
+    })
+    .catch((err) => {
+      console.error("étude mode unavailable (serve the site over http to enable it)", err);
+      const btn = document.querySelector('.lang-opt[data-lang="etude"]');
+      if (btn) {
+        btn.disabled = true;
+        btn.title = "étude mode needs the site served over http";
+      }
+      applyLang("strudel");
+    });
 });

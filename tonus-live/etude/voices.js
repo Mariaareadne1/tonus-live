@@ -161,6 +161,7 @@ const DRUMS = {
   clap:    (ctx, out, t, v) => [0, 0.012, 0.024].forEach((d, i) =>
     burst(ctx, out, t + d, v, { type: "bandpass", hz: 1200, q: 1.2, decay: i === 2 ? 0.14 : 0.02, level: 0.8 })),
   rim:     (ctx, out, t, v) => burst(ctx, out, t, v, { type: "bandpass", hz: 1700, q: 6, decay: 0.03, level: 1.6 }),
+  crash:   (ctx, out, t, v) => burst(ctx, out, t, v, { type: "highpass", hz: 4500, q: 0.5, decay: 0.9, level: 0.5 }),
 };
 
 function playDrum(ctx, out, note) {

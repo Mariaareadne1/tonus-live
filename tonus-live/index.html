@@ -16,7 +16,10 @@
     <div class="bar-cell brand-cell">
       <div class="brand">tonus.</div>
       <div class="brand-sub">model 02 · live-coding instrument · strudel-compatible</div>
-      <a class="brand-link" href="workshop.html">étude workshop →</a>
+      <div class="brand-links">
+        <a class="brand-link" href="repl.html">étude REPL →</a>
+        <a class="brand-link" href="workshop.html">workshop →</a>
+      </div>
     </div>
     <div class="bar-cell stamp-cell">
       <div class="stamp">
@@ -33,6 +36,11 @@
       </div>
     </div>
     <div class="bar-cell action-cell">
+      <div class="lang-switch" role="radiogroup" aria-label="Code language">
+        <span class="lang-label">LANG</span>
+        <button type="button" role="radio" class="lang-opt" data-lang="strudel" aria-checked="true">strudel</button>
+        <button type="button" role="radio" class="lang-opt" data-lang="etude" aria-checked="false">étude</button>
+      </div>
       <button id="recordBtn" class="ctl-btn rec-btn" type="button">
         <span class="rec-dot"></span>
         <span class="btn-label">RECORD</span>

@@ -352,6 +352,7 @@ kbd {
 /* syntax colours */
 .tk-inst    { color: var(--pink); font-weight: 700; }
 .tk-label   { color: var(--ink-dim); }
+.tk-var     { color: var(--purple); font-weight: 700; }
 .tk-punct   { color: var(--ink-dim); }
 .tk-kw      { color: var(--cyan); }
 .tk-val     { color: var(--amber); }

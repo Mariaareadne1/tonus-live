@@ -9,7 +9,7 @@ export const INSTRUMENTS = ["violin", "viola", "cello", "bass", "piano", "harp",
 
 export const STRINGS = ["violin", "viola", "cello", "bass"];
 
-export const DRUM_SOUNDS = ["kick", "snare", "hat", "openhat", "clap", "rim", "tom"];
+export const DRUM_SOUNDS = ["kick", "snare", "hat", "openhat", "clap", "rim", "tom", "crash"];
 
 // Loudness, 0–1. Default for every part is mf.
 export const DYNAMICS = { ppp: 0.08, pp: 0.15, p: 0.25, mp: 0.38, mf: 0.52, f: 0.68, ff: 0.84, fff: 1 };
@@ -65,6 +65,9 @@ export const TEMPO_MARKS = {
 export const DEFAULT_TEMPO = 100;
 
 export const GLOBALS = ["tempo", "time", "key"];
+// words for variables, loops and conditionals
+export const PROGRAM_WORDS = ["let", "repeat", "as", "if", "then", "else", "up", "down", "is", "not", "even", "odd", "first", "last", "r", "rest", "x"];
+
 export const MODIFIERS = ["dynamics", "tone", "vibrato", "bowing", "echo", "hall", "seat", "speed", "tacet"];
 
 // Every named value, for the highlighter.

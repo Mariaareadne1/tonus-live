@@ -9,7 +9,7 @@ import { parse, EtudeError } from "./parser.js";
 import { notesBetween } from "./timeline.js";
 import { highlight } from "./highlight.js";
 import { Engine } from "./engine.js";
-import { DRUM_SOUNDS } from "./vocab.js";
+import { drawRoll } from "./roll.js";
 
 const engine = new Engine();
 let activeBlock = null;
@@ -17,7 +17,6 @@ let activeBlock = null;
 const ROLL_HEIGHT = 150;
 const ROLL_PLAYHEAD = 0.3;          // playhead position, fraction of width
 const ROLL_MIN_BEATS = 8;
-const PART_COLORS = ["--phosphor", "--pink", "--cyan", "--amber", "--purple"];
 const MOD_KEY = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "ctrl";
 
 class Block {
@@ -182,74 +181,8 @@ class Block {
   }
 
   drawRoll(beat) {
-    const canvas = this.roll;
-    const dpr = window.devicePixelRatio || 1;
-    const width = canvas.clientWidth;
-    if (canvas.width !== Math.round(width * dpr)) {
-      canvas.width = Math.round(width * dpr);
-      canvas.height = Math.round(ROLL_HEIGHT * dpr);
-    }
-    const g = canvas.getContext("2d");
-    g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    g.clearRect(0, 0, width, ROLL_HEIGHT);
-
-    const { program } = this;
-    const span = Math.max(ROLL_MIN_BEATS, program.beatsPerBar * 2);
-    const from = beat - span * ROLL_PLAYHEAD;
-    const to = from + span;
-    const px = width / span;
-    const lanes = rollLanes(program);
-    const css = getComputedStyle(document.documentElement);
-
-    // bar lines, like a score
-    g.strokeStyle = css.getPropertyValue("--line-2");
-    g.lineWidth = 1;
-    for (let b = Math.ceil(from / program.beatsPerBar) * program.beatsPerBar; b < to; b += program.beatsPerBar) {
-      const x = Math.round((b - from) * px) + 0.5;
-      g.beginPath();
-      g.moveTo(x, 0);
-      g.lineTo(x, ROLL_HEIGHT);
-      g.stroke();
-    }
-
-    notesBetween(program, from - 16, to).forEach((n) => {
-      if (n.beat + n.dur < from) return;
-      const color = css.getPropertyValue(PART_COLORS[n.partIndex % PART_COLORS.length]).trim();
-      const on = beat >= n.beat && beat < n.beat + n.dur;
-      const rows = n.part.instrument === "drums" ? n.event.drums.map(lanes.drumRow) : n.event.pitches.map(lanes.pitchRow);
-      g.globalAlpha = (on ? 1 : 0.35) * (0.35 + 0.65 * Math.min(1, n.params.dynamic / 0.7));
-      g.fillStyle = color;
-      rows.forEach((y) => {
-        const x = (n.beat - from) * px;
-        g.fillRect(x, y, Math.max(2, n.dur * px - 1.5), lanes.rowHeight - 1);
-      });
-    });
-    g.globalAlpha = 1;
-
-    const head = Math.round(span * ROLL_PLAYHEAD * px) + 0.5;
-    g.strokeStyle = css.getPropertyValue("--pink");
-    g.beginPath();
-    g.moveTo(head, 0);
-    g.lineTo(head, ROLL_HEIGHT);
-    g.stroke();
+    drawRoll(this.roll, this.program, beat, { height: ROLL_HEIGHT, playhead: ROLL_PLAYHEAD, minBeats: ROLL_MIN_BEATS });
   }
-}
-
-/* Vertical layout for the roll: pitches on top, drums in lanes below. */
-function rollLanes(program) {
-  const pitches = program.parts.flatMap((p) => p.events.flatMap((e) => e.pitches));
-  const drums = [...new Set(program.parts.flatMap((p) => p.events.flatMap((e) => e.drums)))]
-    .sort((a, b) => DRUM_SOUNDS.indexOf(a) - DRUM_SOUNDS.indexOf(b));
-  const lo = pitches.length ? Math.min(...pitches) - 2 : 0;
-  const hi = pitches.length ? Math.max(...pitches) + 2 : -1;
-  const rowCount = Math.max(1, hi - lo + 1 + drums.length);
-  const rowHeight = Math.max(3, Math.min(10, ROLL_HEIGHT / rowCount));
-  const top = (ROLL_HEIGHT - rowHeight * rowCount) / 2;
-  return {
-    rowHeight,
-    pitchRow: (midi) => top + (hi - midi) * rowHeight,
-    drumRow: (drum) => top + (hi - lo + 1 + drums.indexOf(drum)) * rowHeight,
-  };
 }
 
 export function initBlocks() {

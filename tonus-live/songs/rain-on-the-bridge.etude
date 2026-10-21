@@ -1,0 +1,51 @@
+// "Rain on the Bridge" — a song in étude
+let pulse = 64
+let beat = 0.25
+let soft = p
+let loud = ff
+
+tempo pulse * 1.5
+key A minor
+
+// ── themes ──
+let theme      = | A4 (B4 C5) E5 - | D5 C5 B4 (G4 A4) |
+let answer     = | C5 B4 A4 E4 |
+let turnaround = | F4 - G#4 - |
+let ending     = | A4 - - r |
+let comp       = | r (A3+E4 r) r (A3+E4 r) |
+let groove     = | kick (r kick) snare (r kick) |
+
+// ── melody: four verses, the answer jumps up on even verses ──
+violin:
+  repeat 4 as n: | theme | if n is last then | answer | ending | else if n is even then | answer up 5 | turnaround | else | answer | turnaround |
+  dynamics soft < loud over 16
+  vibrato wide
+  hall concert
+  seat left
+
+// ── plucked chords: Am – F – C – G ──
+violin pizz:
+  repeat 4: | comp | comp down 4 | comp up 3 | comp down 2 |
+  bowing pizz
+  echo 0.4 beat * 3
+  dynamics mp
+  seat center-right
+
+// ── flute with first and second endings ──
+flute: |: E5 - - - | D5 - C5 - |1. B4 - - - | r - - - :|2. A4 - - - | r - - - |
+  dynamics mp
+  hall cathedral
+
+// ── bass line ──
+cello:
+  repeat 4 as n: | A2 - - - | F2 - - - | C3 - - - | if n is last then | E2 - E2 - | else | G2 - - - |
+  bowing legato
+  tone tasto < normale > tasto over 8
+  seat right
+
+// ── drums: a fill on the last bar ──
+drums:
+  repeat 4 as n: | groove x3 | if n is last then | snare (snare snare) (snare snare) crash | else | groove |
+drums hats: | hat*8 |
+  dynamics pp mf
+  seat left < right > left over 4

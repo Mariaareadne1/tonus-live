@@ -1291,3 +1291,119 @@ kbd {
   .drum-row { grid-template-columns: 80px repeat(16, 1fr); }
   .drum-pad { font-size: 10px; padding: 6px 6px; }
 }
+
+/* ============================================================
+   LANGUAGE MODE — strudel ⇄ étude
+   ============================================================ */
+
+.lang-switch {
+  display: inline-flex;
+  align-items: stretch;
+  border: var(--border-2);
+  background: var(--bg-2);
+}
+.lang-label {
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  color: var(--amber);
+  border-right: var(--border);
+}
+.lang-opt {
+  padding: 9px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-dim);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+.lang-opt:hover { color: var(--ink); }
+.lang-opt[aria-checked="true"] { background: var(--pink); color: var(--bg-0); font-weight: 700; }
+.lang-opt[data-lang="etude"][aria-checked="true"] { background: var(--phosphor); }
+.lang-opt:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* quick-pick chips (étude only) */
+.etude-chips { display: none; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+body.lang-etude .etude-chips { display: flex; }
+.etude-chip {
+  padding: 3px 7px;
+  border: 1px solid var(--line-2);
+  background: var(--bg-1);
+  color: var(--ink-dim);
+  font-family: var(--font-code);
+  font-size: 10px;
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+.etude-chip:hover { color: var(--phosphor); border-color: var(--phosphor); }
+.etude-chip:active { transform: translateY(1px); }
+.adsr-grid + .etude-chips { margin: 10px 0 2px; }
+
+/* controls that only exist in strudel */
+.ctl.is-strudel-only { opacity: 0.4; }
+.ctl.is-strudel-only .ctl-label::after {
+  content: "strudel only";
+  margin-left: 6px;
+  padding: 0 4px;
+  border: 1px solid var(--line-2);
+  font-size: 8.5px;
+  letter-spacing: 0.12em;
+  color: var(--ink-faint);
+}
+
+/* étude accents */
+body.lang-etude .panel-title { font-style: italic; }
+body.lang-etude .code-dot.live { background: var(--phosphor); }
+
+/* export menu */
+.layers-actions { position: relative; }
+.export-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+  border: var(--border-2);
+  background: var(--bg-2);
+  box-shadow: 0 12px 30px rgba(0,0,0,0.5);
+}
+.export-menu[hidden] { display: none; }
+.export-menu button {
+  padding: 9px 12px;
+  border: 0;
+  border-bottom: var(--border);
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+.export-menu button:last-child { border-bottom: 0; }
+.export-menu button:hover { background: var(--bg-3); color: var(--cyan); }
+.export-menu button:disabled { opacity: 0.4; cursor: not-allowed; }
+body.lang-etude .export-menu button[data-x="etude"] { color: var(--phosphor); }
+
+/* étude syntax colours in the recording + layer code */
+.code-body .tk-inst, .layer-code .tk-inst { color: var(--pink); font-weight: 700; }
+.code-body .tk-kw, .layer-code .tk-kw { color: var(--cyan); }
+.code-body .tk-val, .code-body .tk-num, .layer-code .tk-val, .layer-code .tk-num { color: var(--amber); }
+.code-body .tk-note, .layer-code .tk-note { color: var(--phosphor); }
+.code-body .tk-bar, .code-body .tk-rest, .code-body .tk-tie, .code-body .tk-label,
+.layer-code .tk-bar, .layer-code .tk-rest, .layer-code .tk-tie, .layer-code .tk-label { color: var(--ink-dim); }
+.code-body .tk-var, .layer-code .tk-var { color: var(--purple); }
+.code-body .tk-comment, .layer-code .tk-comment { color: var(--ink-faint); font-style: italic; }
+
+.brand-links { display: flex; flex-direction: column; gap: 4px; }
+.brand-links .brand-link { margin-left: 0; text-align: center; }
+@media (max-width: 1280px) {
+  .lang-label { display: none; }
+  .action-cell { gap: 10px; padding-left: 16px; padding-right: 16px; }
+  .action-cell .ctl-btn { padding: 11px 12px; }
+}

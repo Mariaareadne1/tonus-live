@@ -17,6 +17,7 @@
   <span class="ws-crumb">étude <em>workshop</em></span>
   <nav class="ws-links" aria-label="Site">
     <a href="index.html">instrument</a>
+    <a href="repl.html">REPL</a>
     <a href="workshop.html" aria-current="page">workshop</a>
   </nav>
 </header>
@@ -46,11 +47,18 @@
         <li><a href="#tempo">tempo &amp; speed</a></li>
         <li><a href="#hairpins">hairpins</a></li>
         <li><a href="#over">over</a></li>
+        <li><a href="#composing">composing with code</a></li>
+        <li><a href="#let">let</a></li>
+        <li><a href="#multiply">x2 · up · down</a></li>
+        <li><a href="#repeat">repeat</a></li>
+        <li><a href="#if">if · then · else</a></li>
+        <li><a href="#endings">endings</a></li>
         <li><a href="#recap">Recap</a></li>
         <li><a href="#your-turn">Your turn</a></li>
       </ul>
       <p class="ws-side-head">elsewhere</p>
       <ul>
+        <li><a href="repl.html">étude REPL →</a></li>
         <li><a href="index.html">tonus instrument →</a></li>
       </ul>
     </details>
@@ -427,6 +435,188 @@ bass: | (C2 C3)*4 | (Bb1 Bb2)*4 | (F2 F3)*4 | (Eb2 Eb3)*4 |
       </div>
     </div>
 
+    <!-- =============== COMPOSING WITH CODE =============== -->
+    <h2 id="composing">Composing with code</h2>
+    <p>So far every note has been written out by hand. Composers rarely do that: they name a theme, repeat it, move it up a step, and change the ending the last time through. étude can do all of that, so this is where it starts to feel like programming.</p>
+
+    <h3 id="let">let: name a phrase</h3>
+    <div class="card">
+      <div class="etude"><textarea>
+tempo 100
+let opening = | D5 (E5 F#5) G5 A5 | B5 A5 G5 - |
+
+violin: | opening | opening |
+  bowing detache
+</textarea></div>
+      <div class="hint">
+        <ul>
+          <li><code>let opening = …</code> gives the phrase a name. Put the name between bar lines and the whole phrase plays there.</li>
+          <li>Watch the highlighting: the notes light up where the phrase is <em>defined</em>.</li>
+          <li>A phrase can carry on over several lines, as long as each new line starts with a bar line.</li>
+          <li>Names are words like <code>opening</code> or <code>bridge</code>. They can't look like a note (<code>a</code>, <code>b4</code>) or reuse a word étude already knows.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 id="let-values">let: name a value</h3>
+    <div class="card">
+      <div class="etude"><textarea>
+let root = D3
+let soft = pp
+let loud = f
+let turn = (A3 G3 F#3 G3)
+
+cello: | root - turn root | root - - - |
+  dynamics soft < loud
+</textarea></div>
+      <div class="hint">
+        <ul>
+          <li>Variables also hold a single note, a little motif, or a value like a dynamic.</li>
+          <li>Change <code>let root = D3</code> to <code>G2</code>, and every place that says <code>root</code> follows.</li>
+          <li>Try <code>let loud = fff</code>.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 id="multiply">x2, up, down: multiply and transpose</h3>
+    <div class="card">
+      <div class="etude"><textarea>
+tempo 120
+let riff = | (A3 C4) (E4 A4) (C5 A4) (E4 C4) |
+
+harp: | riff x2 | riff up 5 x2 | riff up 7 | riff down 12 |
+</textarea></div>
+      <div class="hint">
+        <ul>
+          <li><code>x2</code> (or <code>* 2</code>) plays a phrase twice.</li>
+          <li><code>up 5</code> and <code>down 12</code> transpose by semitones: 7 is a fifth, 12 is an octave.</li>
+          <li>You can combine them: <code>riff up 5 x2</code>.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 id="numbers">numbers you can calculate</h3>
+    <div class="card">
+      <div class="etude"><textarea>
+let pulse = 60
+let beat = 0.25
+tempo pulse * 2
+
+drums: | kick (r kick) snare r |
+  echo 0.5 beat * 3
+  hall 1.5 * 2
+</textarea></div>
+      <div class="hint">
+        <ul>
+          <li>Anywhere étude wants a number, you can write a sum: <code>+</code> <code>-</code> <code>*</code> <code>/</code> and parentheses.</li>
+          <li>Change <code>tempo pulse * 2</code> to <code>tempo pulse * 1.5</code>.</li>
+          <li><code>beat * 3</code> is 0.75 beats, a dotted-eighth echo.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 id="repeat">repeat: loops</h3>
+    <div class="card">
+      <div class="etude"><textarea>
+violin:
+  repeat 4: | A4 (B4 C#5) D5 E5 |
+  bowing spiccato
+</textarea></div>
+      <div class="hint">
+        <ul>
+          <li><code>repeat 4:</code> writes the bars after the colon four times, without copy-pasting.</li>
+          <li>It's like a repeat sign, but it can hold anything, including the next two ideas.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 id="repeat-as">repeat … as n: a counter</h3>
+    <div class="card">
+      <div class="etude"><textarea>
+tempo 110
+let step = | C4 E4 G4 E4 |
+
+piano:
+  repeat 6 as n: | step up n - 1 |
+</textarea></div>
+      <div class="hint">
+        <ul>
+          <li><code>as n</code> names a counter that goes 1, 2, 3 … each time round.</li>
+          <li><code>step up n - 1</code> moves the pattern up one semitone each pass: a sequence, written once.</li>
+          <li>Try <code>step up (n - 1) * 2</code> for whole steps, or <code>step down n * 5</code>.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 id="if">if … then … else: conditions</h3>
+    <div class="card">
+      <div class="etude"><textarea>
+tempo 100
+key D minor
+let theme = | D5 F5 A5 F5 | G5 E5 C#5 A4 |
+
+violin:
+  repeat 4 as n: | theme | if n is last then | D5 - - r | else | E5 - - r |
+  bowing detache
+  hall concert
+</textarea></div>
+      <div class="hint">
+        <ul>
+          <li>The first three times, the theme ends up on E (a half cadence). The last time it comes home to D.</li>
+          <li>Conditions you can write: <code>n is last</code>, <code>n is first</code>, <code>n is even</code>, <code>n is odd</code>, <code>n = 2</code>, <code>n &gt; 2</code>, <code>n &lt;= 3</code>, <code>n is not 1</code>.</li>
+          <li>The <code>else</code> part is optional. Without it, nothing is added that time round.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 id="endings">first and second endings</h3>
+    <p>You've been using conditionals for years: a repeat with first and second endings is an "if" written in music.</p>
+    <div class="card">
+      <div class="etude"><textarea>
+tempo 120
+time 3/4
+key G major
+violin: |: G4 B4 D5 | C5 A4 F4 |1. G4 A4 B4 :|2. G4 - r |
+  bowing detache
+</textarea></div>
+      <div class="hint">
+        <ul>
+          <li><code>|1.</code> starts the first ending, and <code>:|2.</code> jumps back and then takes the second ending.</li>
+          <li>It plays: bars 1–2, first ending, bars 1–2 again, second ending.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>everything together</h3>
+    <div class="card">
+      <div class="etude"><textarea>
+// theme and variations
+tempo 104
+key D minor
+
+let theme = | D5 (E5 F5) G5 A5 | B5 A5 G5 - |
+let cadence = | (C#5 D5) E5 D5 - |
+let soft = p
+let loud = f
+
+violin:
+  repeat 4 as n: | theme up n - 1 | if n is last then | cadence | else | A5 - - r |
+  dynamics soft < loud over 12
+  hall concert
+
+let groove = | kick (r kick) snare (r kick) |
+drums:
+  repeat 3 as n: | groove | if n is even then | kick kick snare (snare snare) | else | groove |
+drums hats: | hat*8 |
+  dynamics pp mf
+
+cello:
+  repeat 4 as n: | D3 - - - | G2 - - - | if n is last then | A2 - - - | else | Bb2 - - - |
+  bowing legato
+  hall concert
+</textarea></div>
+    </div>
+
     <!-- =============== RECAP =============== -->
     <h2 id="recap">Recap</h2>
     <div class="ws-table-wrap">
@@ -473,6 +663,19 @@ violin: | A4 E5 |
           <tr><td>hairpins</td><td>cresc. and dim.</td><td><div class="etude" data-compact><textarea>
 drums: | hat*16 |
   dynamics pp < ff
+</textarea></div></td></tr>
+          <tr><td>let</td><td>a named theme</td><td><div class="etude" data-compact><textarea>
+let lick = | A4 (B4 C#5) E5 - |
+violin: | lick | lick up 5 |
+</textarea></div></td></tr>
+          <tr><td>repeat</td><td>a sequence</td><td><div class="etude" data-compact><textarea>
+let cell = | C4 E4 G4 E4 |
+piano:
+  repeat 4 as n: | cell up n * 2 |
+</textarea></div></td></tr>
+          <tr><td>if</td><td>a different ending</td><td><div class="etude" data-compact><textarea>
+violin:
+  repeat 4 as n: | A4 B4 C#5 D5 | if n is last then | A5 - - - | else | E5 - - - |
 </textarea></div></td></tr>
           <tr><td>over</td><td>a long hairpin</td><td><div class="etude" data-compact><textarea>
 drums: | hat*16 |

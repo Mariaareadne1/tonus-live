@@ -10,10 +10,13 @@
        dynamics p < f           ← modifiers for the part above
    ============================================================ */
 
+import { EtudeError } from "./errors.js";
+import { expandScore } from "./expand.js";
+import { foldArithmetic } from "./expr.js";
 import {
   INSTRUMENTS, DRUM_SOUNDS, DYNAMICS, TONES, VIBRATOS, BOWINGS, DEFAULT_BOWING,
   ENVELOPE_LABELS, HALLS, NOTE_VALUES, DEFAULT_ECHO_TIME, DEFAULT_ECHO_FEEDBACK,
-  SEATS, SPEEDS, TEMPO_MARKS, DEFAULT_TEMPO, GLOBALS, MODIFIERS,
+  SEATS, SPEEDS, TEMPO_MARKS, DEFAULT_TEMPO, GLOBALS, MODIFIERS, VALUE_WORDS, PROGRAM_WORDS,
 } from "./vocab.js";
 
 /**
@@ -24,17 +27,10 @@ import {
  * @typedef {{ instrument: string, label: string, line: number, events: ScoreEvent[],
  *             loopBeats: number, loopBars: number, noteCount: number,
  *             mods: Record<string, any>, tacet: boolean, speed: number }} Part
- * @typedef {{ tempo: number, beatsPerBar: number, key: string|null, parts: Part[] }} Program
+ * @typedef {{ tempo: number, beatsPerBar: number, key: string|null, keyFifths: number, parts: Part[] }} Program
  */
 
-export class EtudeError extends Error {
-  /** @param {string} message @param {number} line 1-based */
-  constructor(message, line) {
-    super(message);
-    this.name = "EtudeError";
-    this.line = line;
-  }
-}
+export { EtudeError };
 
 const HEADER_RE = /^\s*([A-Za-z]+)(?:\s+([\w-]+))?\s*:/;
 const NOTE_RE = /^([A-Ga-g])(##|#|bb|b|n)?(-?\d)?$/;
@@ -45,6 +41,9 @@ const FLAT_ORDER = "BEADGCF";
 const MAJOR_FIFTHS = { C: 0, G: 1, D: 2, A: 3, E: 4, B: 5, "F#": 6, "C#": 7, F: -1, Bb: -2, Eb: -3, Ab: -4, Db: -5, Gb: -6, Cb: -7 };
 const MINOR_FIFTHS = { A: 0, E: 1, B: 2, "F#": 3, "C#": 4, "G#": 5, "D#": 6, "A#": 7, D: -1, G: -2, C: -3, F: -4, Bb: -5, Eb: -6, Ab: -7 };
 const CURVABLE = ["dynamics", "tone", "seat"];
+const SCORE_STARTERS = ["repeat", "if"];
+const LET_RE = /^(\s*let\s+)([A-Za-z_][\w-]*)\s*=\s*/;
+const MAX_LET_DEPTH = 16;
 
 /* ---------- public ---------- */
 
@@ -53,7 +52,11 @@ const CURVABLE = ["dynamics", "tone", "seat"];
  * @returns {Program}
  */
 export function parse(source) {
-  const state = { tempo: DEFAULT_TEMPO, beatsPerBar: 4, keyName: null, keyMap: {}, drafts: [] };
+  const state = {
+    tempo: DEFAULT_TEMPO, beatsPerBar: 4, keyName: null, keyFifths: 0, keyMap: {}, drafts: [],
+    lets: new Map(),   // name → { kind: "phrase"|"value", segments, line }
+    context: null,     // what bar-line lines continue: "part", "let" (a phrase) or "value"
+  };
 
   let offset = 0;
   source.split("\n").forEach((rawLine, i) => {
@@ -69,7 +72,8 @@ export function parse(source) {
     tempo: state.tempo,
     beatsPerBar: state.beatsPerBar,
     key: state.keyName,
-    parts: state.drafts.map((draft) => buildPart(draft, state)),
+    keyFifths: state.keyFifths,
+    parts: state.drafts.map((draft) => buildPart(draft, state, letTokens(state))),
   };
 }
 
@@ -95,17 +99,26 @@ function stripComment(line) {
 
 function readLine(state, line, offset, lineNo) {
   if (line.trim() === "") return;
+  const trimmed = line.trimStart();
+  const first = trimmed.split(/\s+/)[0];
+
+  if (first.toLowerCase() === "let") {
+    readLet(state, line, offset, lineNo);
+    return;
+  }
+  if (trimmed.startsWith("|")) {
+    addScoreLine(state, line, offset, lineNo, state.context === "let");
+    return;
+  }
+  if (SCORE_STARTERS.includes(first) || state.lets.get(first)?.kind === "phrase") {
+    addScoreLine(state, line, offset, lineNo, false);
+    return;
+  }
 
   const header = line.match(HEADER_RE);
   if (header) {
     startPart(state, header, offset, lineNo);
-    return;
-  }
-
-  const trimmed = line.trimStart();
-  if (trimmed.startsWith("|")) {
-    const draft = currentPart(state, lineNo, "Bar lines");
-    draft.segments.push({ text: line, offset, line: lineNo });
+    state.context = "part";
     return;
   }
 
@@ -116,10 +129,70 @@ function readLine(state, line, offset, lineNo) {
     return;
   }
   if (!MODIFIERS.includes(keyword)) {
-    throw new EtudeError(`I don't know "${word}".${suggest(word, [...MODIFIERS, ...GLOBALS])}`, lineNo);
+    throw new EtudeError(`I don't know "${word}".${suggest(word, [...MODIFIERS, ...GLOBALS, ...state.lets.keys()])}`, lineNo);
+  }
+  if (state.context !== "part") {
+    throw new EtudeError(`"${keyword}" goes under a part. Move it below the part it belongs to, after any let lines.`, lineNo);
   }
   const draft = currentPart(state, lineNo, `"${keyword}"`);
   draft.mods[keyword] = { args, line: lineNo };
+}
+
+/* A line of bars: continues the phrase being defined, or the current part. */
+function addScoreLine(state, line, offset, lineNo, intoLet) {
+  const seg = { text: line, offset, line: lineNo };
+  if (intoLet) {
+    state.pendingLet.segments.push(seg);
+    return;
+  }
+  if (state.context !== "part") {
+    throw new EtudeError("Bars need a part to belong to. Start one first, like  violin: | A4 |", lineNo);
+  }
+  currentPart(state, lineNo, "Bar lines").segments.push(seg);
+}
+
+/* let name = | bars … |   (a phrase)   or   let name = words   (a value) */
+function readLet(state, line, offset, lineNo) {
+  const m = line.match(LET_RE);
+  if (!m) throw new EtudeError("Write a variable like  let opening = | D5 E5 F5 G5 |  or  let soft = pp", lineNo);
+  const name = m[2];
+  checkName(name, lineNo);
+  const valueText = line.slice(m[0].length);
+  if (valueText.trim() === "") throw new EtudeError(`"${name}" needs a value after the =.`, lineNo);
+  const firstWord = valueText.trim().split(/\s+/)[0];
+  const isPhrase = /^\s*(\||repeat\b|if\b)/.test(valueText) || state.lets.get(firstWord)?.kind === "phrase";
+  const entry = { kind: isPhrase ? "phrase" : "value", segments: [{ text: valueText, offset: offset + m[0].length, line: lineNo }], line: lineNo };
+  state.lets.set(name, entry);
+  state.pendingLet = entry;
+  state.context = isPhrase ? "let" : "value";
+}
+
+function checkName(name, lineNo) {
+  const lower = name.toLowerCase();
+  if (INSTRUMENTS.includes(lower)) throw new EtudeError(`"${name}" is an instrument, so it can't be a variable name.`, lineNo);
+  if (NOTE_RE.test(name)) throw new EtudeError(`"${name}" looks like a note, so it can't be a variable name. Try a word like "opening".`, lineNo);
+  if (/^[x*]\d+$/.test(lower) || DRUM_SOUNDS.includes(lower) || GLOBALS.includes(lower) || MODIFIERS.includes(lower)
+      || VALUE_WORDS.has(lower) || PROGRAM_WORDS.includes(lower)) {
+    throw new EtudeError(`"${name}" already means something in étude. Pick another name.`, lineNo);
+  }
+}
+
+/* Every let as tokens, for expanding scores. */
+function letTokens(state) {
+  return new Map([...state.lets].map(([name, v]) => [name, { kind: v.kind, line: v.line, tokens: v.segments.flatMap(tokenizeSegment) }]));
+}
+
+/* Substitute value variables in modifier/tempo words, then do any arithmetic. */
+function resolveWords(state, words, line, depth = 0) {
+  if (depth > MAX_LET_DEPTH) throw new EtudeError("A variable seems to refer to itself, so it would never end.", line);
+  const pieces = words.flatMap((w) => w.split(/([<>|*/+()])/)).filter((w) => w !== "");
+  const out = pieces.flatMap((p) => {
+    const v = state.lets.get(p);
+    if (!v) return [p];
+    if (v.kind === "phrase") throw new EtudeError(`"${p}" is a phrase of notes, so it can't be used as a value here.`, line);
+    return resolveWords(state, v.segments.map((seg) => seg.text).join(" ").trim().split(/\s+/), line, depth + 1);
+  });
+  return depth === 0 ? foldArithmetic(out, line) : out;
 }
 
 function startPart(state, header, offset, lineNo) {
@@ -151,7 +224,7 @@ function currentPart(state, lineNo, what) {
 function readGlobal(state, keyword, args, lineNo) {
   const arg = args.join(" ");
   if (keyword === "tempo") {
-    state.tempo = readTempo(arg, lineNo);
+    state.tempo = readTempo(resolveWords(state, args, lineNo).join(" "), lineNo);
     return;
   }
   if (keyword === "time") {
@@ -162,8 +235,9 @@ function readGlobal(state, keyword, args, lineNo) {
     state.beatsPerBar = +m[1];
     return;
   }
-  const { name, map } = readKey(arg, lineNo);
+  const { name, map, fifths } = readKey(arg, lineNo);
   state.keyName = name;
+  state.keyFifths = fifths;
   state.keyMap = map;
 }
 
@@ -190,13 +264,13 @@ function readKey(arg, lineNo) {
   }
   const letters = fifths > 0 ? SHARP_ORDER.slice(0, fifths) : FLAT_ORDER.slice(0, -fifths);
   const map = Object.fromEntries([...letters].map((l) => [l, fifths > 0 ? 1 : -1]));
-  return { name: `${tonic} ${mode}`, map };
+  return { name: `${tonic} ${mode}`, map, fifths };
 }
 
 /* ---------- parts ---------- */
 
-function buildPart(draft, state) {
-  const bars = readBars(draft);
+function buildPart(draft, state, lets) {
+  const bars = readBars(draft, lets);
   const events = layoutBars(bars, draft, state);
   if (events.length === 0 && bars.length === 0) {
     throw new EtudeError(`The ${draft.instrument} has no notes yet — add a bar like  | A4 B4 C#5 D5 |`, draft.line);
@@ -213,15 +287,19 @@ function buildPart(draft, state) {
     tacet: false,
     speed: 1,
   };
-  return Object.entries(draft.mods).reduce((acc, [name, mod]) => applyModifier(acc, name, mod.args, mod.line), part);
+  return Object.entries(draft.mods).reduce(
+    (acc, [name, mod]) => applyModifier(acc, name, resolveWords(state, mod.args, mod.line), mod.line),
+    part,
+  );
 }
 
-/* Tokenise every score segment, then split into bars. Repeats and
-   simile bars copy token lists, so copies keep their source ranges. */
-function readBars(draft) {
+/* Tokenise and expand every score segment, then split into bars. Repeats,
+   endings and simile bars copy token lists, so copies keep their source ranges. */
+function readBars(draft, lets) {
   const bars = [];
   let current = [];
   let repeatFrom = 0;
+  let endingAt = null;
   let simile = false;
 
   const closeBar = () => {
@@ -230,9 +308,23 @@ function readBars(draft) {
     simile = false;
   };
 
-  const tokens = draft.segments.flatMap(tokenizeSegment);
+  const ctx = { lets, loops: {}, depth: 0 };
+  const tokens = draft.segments.flatMap((seg) => expandScore(tokenizeSegment(seg), ctx));
   tokens.forEach((tok, i) => {
     if (tok.text === "|") return closeBar();
+    if (/^\|\d\.$/.test(tok.text)) {
+      closeBar();
+      if (tok.text === "|1.") endingAt = bars.length;
+      return;
+    }
+    if (/^:\|\d\.$/.test(tok.text) || (tok.text === ":|" && endingAt !== null)) {
+      closeBar();
+      if (endingAt === null) throw new EtudeError(`"${tok.text}" needs a first ending (|1.) before it.`, tok.line);
+      bars.push(...bars.slice(repeatFrom, endingAt));
+      endingAt = null;
+      repeatFrom = bars.length;
+      return;
+    }
     if (tok.text === "|:") {
       closeBar();
       repeatFrom = bars.length;
@@ -269,7 +361,7 @@ function readBars(draft) {
 }
 
 function tokenizeSegment(seg) {
-  const re = /\|:|:\||\||\(|\)|%|\*\d+|-(?=\s|$|[|)])|[^\s|()*%]+/g;
+  const re = /:\|\d\.|\|\d\.|\|:|:\||\||\(|\)|%|\*\d+|\*|:|-(?=\s|$|[|)])|[^\s|()*%:]+/g;
   return [...seg.text.matchAll(re)].map((m) => ({
     text: m[0],
     start: seg.offset + m.index,
@@ -299,10 +391,10 @@ function readNodes(tokens, pos, inGroup) {
     }
     if (tok.text === "(") {
       nodes.push({ type: "group", children: readNodes(tokens, pos, true), tok });
-    } else if (/^\*\d+$/.test(tok.text)) {
+    } else if (/^\*\d+$/.test(tok.text) || (tok.text === "*" && /^\d+$/.test(tokens[pos.i]?.text ?? ""))) {
       const prev = nodes.pop();
       if (!prev) throw new EtudeError(`"${tok.text}" repeats the note before it, like  hat*8`, tok.line);
-      const times = Number(tok.text.slice(1));
+      const times = Number(tok.text === "*" ? tokens[pos.i++].text : tok.text.slice(1));
       if (times < 1 || times > 64) throw new EtudeError("Repeat a note between 1 and 64 times.", tok.line);
       nodes.push(...Array(times).fill(prev));
     } else {
@@ -341,7 +433,7 @@ function placeLeaf(tok, beat, dur, ctx) {
   const event = {
     beat,
     dur,
-    pitches: isDrums ? [] : pieces.map((p) => readPitch(p, tok, ctx.state.keyMap)),
+    pitches: isDrums ? [] : pieces.map((p) => readPitch(p, tok, ctx.state.keyMap) + (tok.transpose ?? 0)),
     drums: isDrums ? pieces.map((p) => readDrum(p, tok)) : [],
     range: [tok.start, tok.end],
     bar: ctx.barIndex,

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>étude REPL · tonus</title>
+  <meta name="description" content="Write and play étude, a live-coding language that reads like a violin part. Export to Strudel." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="workshop.css" />
+  <link rel="stylesheet" href="repl.css" />
+</head>
+<body class="repl">
+
+<header class="rp-top">
+  <a class="rp-brand" href="index.html" title="tonus instrument">tonus.</a>
+  <span class="rp-title">étude <em>REPL</em></span>
+  <span class="rp-status" id="status" aria-live="polite"></span>
+  <nav class="rp-actions" aria-label="REPL">
+    <button class="rp-btn rp-play" id="playBtn" type="button"><span class="rp-icon">▶</span> <span class="rp-label">play</span></button>
+    <button class="rp-btn" id="updateBtn" type="button" title="update (ctrl+enter)">update</button>
+    <button class="rp-btn" id="shareBtn" type="button">share</button>
+    <a class="rp-btn" href="workshop.html">learn</a>
+    <a class="rp-btn" href="index.html">instrument</a>
+    <button class="rp-btn rp-menu" id="panelBtn" type="button" aria-label="Toggle side panel" aria-expanded="true">☰</button>
+  </nav>
+</header>
+
+<div class="rp-body">
+  <section class="rp-editor-wrap" aria-label="Code">
+    <canvas class="rp-roll" id="roll" aria-hidden="true"></canvas>
+    <div class="rp-editor" id="editor"></div>
+    <div class="rp-error" id="error" role="alert" hidden></div>
+  </section>
+
+  <aside class="rp-panel" id="panel" aria-label="Side panel">
+    <div class="rp-tabs" role="tablist">
+      <button class="rp-close" id="closePanel" type="button" aria-label="Close panel">×</button>
+      <button role="tab" data-tab="welcome" aria-selected="true">welcome</button>
+      <button role="tab" data-tab="beats">beats</button>
+      <button role="tab" data-tab="sounds">sounds</button>
+      <button role="tab" data-tab="reference">reference</button>
+      <button role="tab" data-tab="export">export</button>
+      <button role="tab" data-tab="console">console</button>
+      <button role="tab" data-tab="settings">settings</button>
+    </div>
+
+    <div class="rp-tab" data-pane="welcome" role="tabpanel">
+      <h2>welcome</h2>
+      <p>You've found <strong>étude</strong>, a live-coding language that reads like the part on your music stand: notes, bar lines, dynamics, bowings and hairpins.</p>
+      <p class="rp-steps"><span>1. hit play</span> – <span>2. change something</span> – <span>3. hit update</span></p>
+      <p>The code on the left is a beat written in étude. Try changing <code>bowing pizz</code> to <code>bowing legato</code>, or <code>dynamics pp mf p mf</code> to <code>dynamics pp &lt; ff</code>, then press <kbd data-mod>ctrl</kbd>+<kbd>enter</kbd>.</p>
+      <p>New here? The <a href="workshop.html">workshop</a> walks through the language one effect at a time.</p>
+      <p>étude is also a little programming language: name a theme with <code>let</code>, loop it with <code>repeat 4 as n:</code>, transpose it with <code>up n</code>, and change the ending with <code>if n is last then …</code>. Load <button class="rp-link" data-goto="beats">theme and variations</button> to hear all of it.</p>
+      <h2>keys</h2>
+      <ul class="rp-keys">
+        <li><kbd data-mod>ctrl</kbd>+<kbd>enter</kbd> play / update</li>
+        <li><kbd data-mod>ctrl</kbd>+<kbd>.</kbd> stop</li>
+        <li><kbd data-mod>ctrl</kbd>+<kbd>z</kbd> undo</li>
+      </ul>
+      <h2>export</h2>
+      <p>Every piece can be exported as étude or translated to <a href="https://strudel.cc" target="_blank" rel="noopener">Strudel</a>. See the <button class="rp-link" data-goto="export">export</button> tab.</p>
+    </div>
+
+    <div class="rp-tab" data-pane="beats" role="tabpanel" hidden>
+      <h2>beats</h2>
+      <p class="rp-muted">Click one to load it into the editor and play. Your current code is replaced, but <kbd data-mod>ctrl</kbd>+<kbd>z</kbd> brings it back.</p>
+      <ul class="rp-list" id="examples"></ul>
+    </div>
+
+    <div class="rp-tab" data-pane="sounds" role="tabpanel" hidden>
+      <h2>instruments</h2>
+      <p class="rp-muted">Click to hear one. Start a part with its name, like <code>cello:</code>.</p>
+      <div class="rp-chips" id="instrumentChips"></div>
+      <h2>drums</h2>
+      <p class="rp-muted">Write these in a <code>drums:</code> part. Join with <code>+</code> to hit together.</p>
+      <div class="rp-chips" id="drumChips"></div>
+      <h2>bow strokes</h2>
+      <p class="rp-muted">Each one plays an open A with that stroke.</p>
+      <div class="rp-chips" id="bowingChips"></div>
+    </div>
+
+    <div class="rp-tab" data-pane="reference" role="tabpanel" hidden>
+      <h2>reference</h2>
+      <div id="reference"></div>
+    </div>
+
+    <div class="rp-tab" data-pane="export" role="tabpanel" hidden>
+      <h2>export</h2>
+      <div class="rp-export-actions">
+        <button class="mini" id="copyEtude" type="button">copy étude</button>
+        <button class="mini" id="downloadEtude" type="button">download .etude</button>
+      </div>
+      <h3>as Strudel</h3>
+      <p class="rp-muted">A live translation of your code. One étude bar becomes one Strudel cycle. Strudel plays real instrument samples, so it will sound a little different.</p>
+      <div class="rp-export-actions">
+        <button class="mini" id="copyStrudel" type="button">copy strudel</button>
+        <button class="mini" id="downloadStrudel" type="button">download .js</button>
+        <a class="mini mini-accent" id="openStrudel" href="https://strudel.cc" target="_blank" rel="noopener">open in strudel.cc ↗</a>
+      </div>
+      <pre class="rp-out" id="strudelOut"></pre>
+    </div>
+
+    <div class="rp-tab" data-pane="console" role="tabpanel" hidden>
+      <h2>console</h2>
+      <ol class="rp-console" id="console"></ol>
+    </div>
+
+    <div class="rp-tab" data-pane="settings" role="tabpanel" hidden>
+      <h2>settings</h2>
+      <label class="rp-set">font size <output id="fontSizeOut">15</output>
+        <input type="range" id="fontSize" min="11" max="24" step="1" value="15" />
+      </label>
+      <label class="rp-set rp-check"><input type="checkbox" id="lineNumbers" checked /> line numbers</label>
+      <label class="rp-set rp-check"><input type="checkbox" id="showRoll" checked /> score roll behind the code</label>
+      <label class="rp-set rp-check"><input type="checkbox" id="highlightNotes" checked /> highlight notes as they play</label>
+      <label class="rp-set rp-check"><input type="checkbox" id="autosave" checked /> remember my code in this browser</label>
+      <button class="mini" id="resetCode" type="button">reset to the starter beat</button>
+    </div>
+  </aside>
+</div>
+
+<div class="rp-toast" id="toast" role="status" hidden></div>
+
+<script type="module" src="etude/repl.js"></script>
+</body>
+</html>
